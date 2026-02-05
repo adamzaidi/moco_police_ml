@@ -1,0 +1,23 @@
+# Ignore all generated data by default
+data/*
+
+# But keep folder + documentation
+!data/.gitkeep
+!data/README.md
+
+# Optionally keep small reference files
+!data/schema.json
+
+# Ignore model outputs / plots
+plots/*
+models/*
+checkpoints/*
+
+# Python junk
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# OS junk
+.DS_Store
