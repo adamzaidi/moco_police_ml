@@ -1,27 +1,50 @@
 # main.py
+"""
+Weather feature ablation, run without touching the test set.
+
+Stage 1 (selection, VALIDATION only):
+    Train the baseline model and one model per dropped feature / feature group,
+    each over several seeds. Rank runs by validation MAE. The test set is never
+    scored here, so nothing about it can influence which features are kept.
+
+Stage 2 (one-time TEST evaluation):
+    Score exactly two configurations on the test set: the all-features baseline
+    and the single configuration with the best validation MAE. Report them next
+    to the naive baselines (yesterday's count, same day last week).
+
+Outputs:
+    data/ablation_results.csv   validation-only ranking of every run
+    data/final_test_results.csv test MAE for the two chosen configs + naive baselines
+
+Caveat: validation is also used for early stopping, so validation MAE is
+slightly optimistic. That is why selection is confirmed on the untouched test
+year instead of trusted on its own.
+"""
 from __future__ import annotations
 
-import os
-import sys
 import time
 import traceback
-import faulthandler
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import numpy as np
 import pandas as pd
 
-print("main.py started", flush=True)
-faulthandler.enable()  # if it hard-hangs, you can still dump stack traces
-
 BASE_DIR = Path(__file__).resolve().parent
 DATA_PATH = BASE_DIR / "data" / "features_daily.csv"
-OUT_PATH = BASE_DIR / "data" / "ablation_results.csv"
+ABLATION_PATH = BASE_DIR / "data" / "ablation_results.csv"
+FINAL_PATH = BASE_DIR / "data" / "final_test_results.csv"
+
+SEEDS = [0, 1, 2, 3, 4]
+MAX_EPOCHS = 160
+PATIENCE = 12
+# A drop counts as a real change only if its mean paired difference from the
+# baseline (same seeds) is larger than this many standard errors.
+NOISE_SE = 2.0
 
 
 def now() -> str:
-    return time.strftime("%Y-%m-%d %H:%M:%S")
+    return time.strftime("%H:%M:%S")
 
 
 def get_weather_cols(df: pd.DataFrame) -> List[str]:
@@ -33,204 +56,146 @@ def get_weather_cols(df: pd.DataFrame) -> List[str]:
         "temp_anom_30", "precip_anom_30",
         "is_rainy", "is_heavy_rain", "is_snow_day", "is_windy", "is_hot_day", "is_freeze_night",
     }
-
-    cols = []
+    out: List[str] = []
     for c in df.columns:
-        if c in ("date", "incident_count"):
+        if c in ("date", "incident_count") or c in out:
             continue
-        if c in exact:
-            cols.append(c)
-            continue
-        if c.startswith(prefixes):
-            cols.append(c)
-            continue
-
-    # de-dup, keep stable order
-    seen = set()
-    out = []
-    for c in cols:
-        if c not in seen and c in df.columns:
+        if c in exact or c.startswith(prefixes):
             out.append(c)
-            seen.add(c)
     return out
 
 
 def define_weather_groups(weather_cols: List[str]) -> Dict[str, List[str]]:
-    def keep(existing: List[str]) -> List[str]:
-        return [c for c in existing if c in weather_cols]
+    def keep(cols: List[str]) -> List[str]:
+        return [c for c in cols if c in weather_cols]
 
     groups = {
-        # Raw continuous-ish
+        # Every weather column at once: does weather help at all?
+        "drop_weather_all": list(weather_cols),
+        # Raw continuous measurements
         "drop_weather_temp_raw": keep(["tmax_f", "tmin_f", "tmean_f"]),
         "drop_weather_precip_raw": keep(["precip_in", "rain_in", "precip_hours"]),
         "drop_weather_snow_raw": keep(["snow_in"]),
         "drop_weather_wind_raw": keep(["wind_max_mph", "gust_max_mph"]),
         "drop_weather_anoms": keep(["temp_anom_30", "precip_anom_30"]),
-
-        # Flags
+        # Threshold flags
         "drop_weather_flags_all": keep(["is_rainy", "is_heavy_rain", "is_snow_day", "is_windy", "is_hot_day", "is_freeze_night"]),
         "drop_weather_flags_snow": keep(["is_snow_day", "is_freeze_night"]),
         "drop_weather_flags_rain": keep(["is_rainy", "is_heavy_rain"]),
         "drop_weather_flags_wind": keep(["is_windy"]),
         "drop_weather_flags_heat": keep(["is_hot_day"]),
     }
-
-    return {k: v for k, v in groups.items() if len(v) > 0}
-
-
-def append_partial_csv(rows: List[Dict[str, object]]) -> None:
-    """Write partial results frequently so you can see progress even if you ctrl+c."""
-    if not rows:
-        return
-    out_df = pd.DataFrame(rows)
-    out_df.to_csv(OUT_PATH, index=False)
-    print(f"[{now()}] wrote partial results → {OUT_PATH} (rows={len(out_df)})", flush=True)
+    return {k: v for k, v in groups.items() if v}
 
 
-def run_one_experiment(
-    train_eval_fn,
-    name: str,
-    drop_cols: List[str] | None,
-    seeds: List[int],
-    exp_idx: int,
-    exp_total: int,
-    max_epochs: int = 160,
-    patience: int = 12,
-) -> Dict[str, object]:
-    maes = []
-    t0 = time.time()
-
-    print(f"\n[{now()}] EXP {exp_idx}/{exp_total} START: {name} | n_drop={0 if not drop_cols else len(drop_cols)}", flush=True)
-    if drop_cols:
-        print(f"  drop_cols={drop_cols}", flush=True)
-
-    for si, s in enumerate(seeds, start=1):
-        print(f"  [{now()}] seed {si}/{len(seeds)} = {s} ...", flush=True)
-        seed_t0 = time.time()
-
-        r = train_eval_fn(
+def run_seeds(train_eval, drop_cols: Optional[List[str]], evaluate_test: bool) -> Dict[int, Dict[str, float]]:
+    out = {}
+    for s in SEEDS:
+        r = train_eval(
             data_path=DATA_PATH,
             drop_cols=drop_cols,
             seed=s,
-            max_epochs=max_epochs,
-            patience=patience,
-            make_plots=False,     # keep ablations fast/clean
-            plot_suffix="",
-            verbose=False,        # silence epochs; main.py prints progress instead
+            max_epochs=MAX_EPOCHS,
+            patience=PATIENCE,
+            make_plots=False,
+            verbose=False,
+            evaluate_test=evaluate_test,
+            save_outputs=False,
         )
-
-        mae = float(r["test_mae"])
-        maes.append(mae)
-        print(f"  [{now()}] seed {s} DONE | test_mae={mae:.4f} | dt={time.time()-seed_t0:.1f}s", flush=True)
-
-    dt = time.time() - t0
-    out = {
-        "run": name,
-        "drop_cols": ",".join(drop_cols) if drop_cols else "",
-        "n_drop": len(drop_cols) if drop_cols else 0,
-        "seeds": ",".join(map(str, seeds)),
-        "test_mae_mean": float(np.mean(maes)),
-        "test_mae_std": float(np.std(maes)),
-        "wall_seconds": float(dt),
-    }
-    print(f"[{now()}] EXP {exp_idx}/{exp_total} END: {name} | mean={out['test_mae_mean']:.4f} std={out['test_mae_std']:.4f} | dt={dt:.1f}s", flush=True)
+        out[s] = {"val": float(r["best_val_mae"]), "test": r["test_mae"]}
     return out
 
 
-def main():
-    print(f"[{now()}] main() entered", flush=True)
+def summarize(name: str, drop_cols: Optional[List[str]], per_seed, base_per_seed) -> Dict[str, object]:
+    vals = np.array([per_seed[s]["val"] for s in SEEDS])
+    row: Dict[str, object] = {
+        "run": name,
+        "n_drop": len(drop_cols) if drop_cols else 0,
+        "val_mae_mean": vals.mean(),
+        "val_mae_std": vals.std(ddof=1),
+    }
+    if base_per_seed is not None:
+        diffs = vals - np.array([base_per_seed[s]["val"] for s in SEEDS])
+        se = diffs.std(ddof=1) / np.sqrt(len(diffs))
+        row["val_delta_vs_baseline"] = diffs.mean()
+        row["val_delta_se"] = se
+        row["beyond_noise"] = bool(se > 0 and abs(diffs.mean()) > NOISE_SE * se)
+    row["drop_cols"] = ",".join(drop_cols) if drop_cols else ""
+    return row
 
+
+def naive_test_maes() -> Dict[str, float]:
+    """Yesterday / same-day-last-week baselines on the same test window as train_nn."""
+    df = pd.read_csv(DATA_PATH, parse_dates=["date"]).sort_values("date")
+    test = df[df["date"] > df["date"].max() - pd.Timedelta(days=365)]
+    y = test["incident_count"]
+    return {
+        "naive_yesterday": float((y - test["lag_1"]).abs().mean()),
+        "naive_last_week": float((y - test["lag_7"]).abs().mean()),
+    }
+
+
+def main() -> None:
     if not DATA_PATH.exists():
         raise FileNotFoundError(f"Missing {DATA_PATH}. Run: python scripts/build_features.py")
 
-    # Import train_eval *inside* main so we can see if import is where it hangs
-    print(f"[{now()}] importing train_eval from scripts.train_nn ...", flush=True)
-    try:
-        from scripts.train_nn import train_eval
-    except Exception:
-        print("ERROR importing train_eval:", flush=True)
-        traceback.print_exc()
-        raise
-    print(f"[{now()}] import OK", flush=True)
+    from scripts.train_nn import train_eval
 
-    # Load columns (nrows=1 is enough; header contains all cols)
-    df_cols = pd.read_csv(DATA_PATH, nrows=1)
-    print(f"[{now()}] features_daily.csv columns={len(df_cols.columns)}", flush=True)
-
-    weather_cols = get_weather_cols(df_cols)
+    weather_cols = get_weather_cols(pd.read_csv(DATA_PATH, nrows=1))
     groups = define_weather_groups(weather_cols)
+    plan: List[tuple] = list(groups.items()) + [(f"drop_{c}", [c]) for c in weather_cols]
+    print(f"[{now()}] {len(weather_cols)} weather cols, {len(plan) + 1} runs x {len(SEEDS)} seeds", flush=True)
 
-    print(f"[{now()}] detected weather_cols={len(weather_cols)}", flush=True)
-    print(f"[{now()}] detected weather_groups={len(groups)}", flush=True)
+    # ---------------- Stage 1: selection on validation ----------------
+    t0 = time.time()
+    base = run_seeds(train_eval, None, evaluate_test=False)
+    rows = [summarize("baseline_all_features", None, base, None)]
+    rows[0].update(val_delta_vs_baseline=0.0, val_delta_se=0.0, beyond_noise=False)
+    print(f"[{now()}] baseline val MAE {rows[0]['val_mae_mean']:.2f}", flush=True)
 
-    # Seeds: set to [0] temporarily if you just want “does it run?”
-    seeds = [0, 1, 2]
-
-    # Build experiment plan
-    plan: List[tuple[str, List[str] | None]] = []
-    plan.append(("baseline_all_features", None))
-    for name, drop in groups.items():
-        plan.append((name, drop))
-    for c in weather_cols:
-        plan.append((f"drop_{c}", [c]))
-
-    print(f"[{now()}] total experiments={len(plan)} | total trainings={len(plan) * len(seeds)}", flush=True)
-    print(f"[{now()}] NOTE: if this seems slow, set seeds=[0] or reduce plan temporarily.", flush=True)
-
-    results: List[Dict[str, object]] = []
-    baseline_mae = None
-
-    for i, (name, drop_cols) in enumerate(plan, start=1):
+    for i, (name, drop) in enumerate(plan, start=1):
         try:
-            row = run_one_experiment(
-                train_eval_fn=train_eval,
-                name=name,
-                drop_cols=drop_cols,
-                seeds=seeds,
-                exp_idx=i,
-                exp_total=len(plan),
-                max_epochs=160,
-                patience=12,
-            )
-            results.append(row)
-
-            # Save partial results each experiment
-            append_partial_csv(results)
-
-            if name == "baseline_all_features":
-                baseline_mae = row["test_mae_mean"]
-
-        except KeyboardInterrupt:
-            print("\nCTRL+C received. Writing partial results and exiting...", flush=True)
-            append_partial_csv(results)
-            raise
+            per_seed = run_seeds(train_eval, drop, evaluate_test=False)
         except Exception:
-            print(f"\nERROR in experiment {name}. Writing partial results and continuing...", flush=True)
+            print(f"ERROR in {name}; skipping", flush=True)
             traceback.print_exc()
-            append_partial_csv(results)
-            # continue to next experiment
             continue
+        row = summarize(name, drop, per_seed, base)
+        rows.append(row)
+        flag = " *" if row["beyond_noise"] else ""
+        print(f"[{now()}] {i}/{len(plan)} {name:32s} val {row['val_mae_mean']:.2f}  "
+              f"delta {row['val_delta_vs_baseline']:+.2f} +/- {row['val_delta_se']:.2f}{flag}", flush=True)
 
-    out = pd.DataFrame(results)
+    abl = pd.DataFrame(rows).sort_values("val_mae_mean").reset_index(drop=True)
+    abl.to_csv(ABLATION_PATH, index=False)
+    print(f"\n[{now()}] stage 1 done in {time.time() - t0:.0f}s -> {ABLATION_PATH}", flush=True)
+    print(abl[["run", "val_mae_mean", "val_delta_vs_baseline", "val_delta_se", "beyond_noise"]]
+          .to_string(index=False, float_format="%.2f"), flush=True)
 
-    if baseline_mae is None:
-        print("WARNING: baseline did not run; delta_vs_baseline will be NaN", flush=True)
-        out["delta_vs_baseline"] = np.nan
-    else:
-        out["delta_vs_baseline"] = out["test_mae_mean"] - float(baseline_mae)
+    # ---------------- Stage 2: one-time test evaluation ----------------
+    best = abl.iloc[0]
+    finalists = [("baseline_all_features", None)]
+    if best["run"] != "baseline_all_features":
+        finalists.append((best["run"], best["drop_cols"].split(",")))
 
-    out = out.sort_values("delta_vs_baseline", ascending=False).reset_index(drop=True)
-    out.to_csv(OUT_PATH, index=False)
+    final_rows = []
+    for name, drop in finalists:
+        per_seed = run_seeds(train_eval, drop, evaluate_test=True)
+        tests = np.array([per_seed[s]["test"] for s in SEEDS])
+        final_rows.append({
+            "model": f"nn:{name}",
+            "test_mae_mean": tests.mean(),
+            "test_mae_std": tests.std(ddof=1),
+            "val_mae_mean": np.mean([per_seed[s]["val"] for s in SEEDS]),
+        })
+    for name, mae in naive_test_maes().items():
+        final_rows.append({"model": name, "test_mae_mean": mae, "test_mae_std": 0.0, "val_mae_mean": np.nan})
 
-    print("\nSaved:", OUT_PATH, flush=True)
-    print("\nTop 15 WORST when dropped (i.e., most helpful features/groups):", flush=True)
-    print(out.head(15)[["run", "test_mae_mean", "test_mae_std", "delta_vs_baseline", "n_drop"]].to_string(index=False), flush=True)
-
-    print("\nTop 15 BEST when dropped (i.e., likely noise / harmful):", flush=True)
-    print(out.tail(15)[["run", "test_mae_mean", "test_mae_std", "delta_vs_baseline", "n_drop"]].to_string(index=False), flush=True)
+    final = pd.DataFrame(final_rows)
+    final.to_csv(FINAL_PATH, index=False)
+    print(f"\n=== ONE-TIME TEST EVALUATION ({len(SEEDS)} seeds) -> {FINAL_PATH} ===", flush=True)
+    print(final.to_string(index=False, float_format="%.2f"), flush=True)
 
 
 if __name__ == "__main__":
-    # Force unbuffered prints even if user forgets -u
-    os.environ["PYTHONUNBUFFERED"] = "1"
     main()

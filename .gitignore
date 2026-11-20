@@ -8,6 +8,10 @@ data/*
 # Optionally keep small reference files
 !data/schema.json
 
+# Small result tables are the project's findings; keep them visible
+!data/ablation_results.csv
+!data/final_test_results.csv
+
 # Ignore model outputs / plots
 plots/*
 models/*
@@ -21,3 +25,6 @@ __pycache__/
 
 # OS junk
 .DS_Store
+
+# Virtual environment
+.venv/
