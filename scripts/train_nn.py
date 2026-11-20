@@ -110,13 +110,20 @@ def train_eval(
     make_plots: bool = True,
     plot_suffix: str = "",
     verbose: bool = True,
+    evaluate_test: bool = True,
+    save_outputs: bool = True,
 ) -> Dict[str, object]:
     """
     Train NN with time-aware split, early stopping on VAL, evaluate once on TEST.
 
+    Pass evaluate_test=False for model selection (e.g. ablations): the test set
+    is never scored and nothing is written to disk, so choices cannot leak
+    test information. Only the final, already-chosen configuration should be
+    run with evaluate_test=True.
+
     Returns a dict with:
-      - test_mae, best_val_mae, n_features, feature_cols, preds_df
-      - saved_csv (Path), saved_plot (Path or None)
+      - test_mae (None when evaluate_test=False), best_val_mae, n_features, feature_cols
+      - preds_df, saved_csv (Path), saved_plot (Path or None) when evaluate_test=True
     """
     set_seed(seed)
     device = torch.device("cpu")
@@ -268,6 +275,14 @@ def train_eval(
                     print("Early stopping.")
                 break
 
+    if not evaluate_test:
+        return {
+            "test_mae": None,
+            "best_val_mae": float(best_val_mae),
+            "n_features": int(len(X_cols)),
+            "feature_cols": X_cols,
+        }
+
     # -----------------------
     # Final evaluation on TEST (one-time)
     # -----------------------
@@ -293,11 +308,13 @@ def train_eval(
     pred_df["pred_nn"] = test_preds
 
     suffix = f"_{plot_suffix}" if plot_suffix else ""
-    out_csv = BASE_DIR / "data" / f"test_predictions_nn{suffix}.csv"
-    pred_df.to_csv(out_csv, index=False)
+    out_csv = None
+    if save_outputs:
+        out_csv = BASE_DIR / "data" / f"test_predictions_nn{suffix}.csv"
+        pred_df.to_csv(out_csv, index=False)
 
     out_plot = None
-    if make_plots:
+    if make_plots and save_outputs:
         last_90 = pred_df.tail(90)
         plt.figure(figsize=(12, 4))
         plt.plot(last_90["date"], last_90["incident_count"], label="Actual")
@@ -312,7 +329,8 @@ def train_eval(
         plt.close()
 
     if verbose:
-        print("Saved:", out_csv)
+        if out_csv:
+            print("Saved:", out_csv)
         if out_plot:
             print("Saved:", out_plot)
 
