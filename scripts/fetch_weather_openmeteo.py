@@ -11,7 +11,7 @@ LAT = 39.1547
 LON = -77.2405
 
 START_DATE = "2017-04-01"
-END_DATE   = None  # if None, we'll auto-use "today" based on your counts later if you want
+END_DATE   = "2026-02-05"  # last day of the incident data; None = today
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 OUT_PATH = BASE_DIR / "data" / "weather_daily.csv"
@@ -54,20 +54,20 @@ def fetch_openmeteo_daily(start_date: str, end_date: str) -> pd.DataFrame:
         "tmin_f": daily.get("temperature_2m_min"),
         "precip_in": daily.get("precipitation_sum"),
         "rain_in": daily.get("rain_sum"),
-        "snow_cm": daily.get("snowfall_sum"),  # NOTE: Open-Meteo returns snowfall_sum in cm even if precip is inch
+        # With precipitation_unit=inch, Open-Meteo returns snowfall_sum in INCHES
+        # (response daily_units says "inch"). An earlier version divided by 2.54,
+        # understating every snow total 2.54x.
+        "snow_in": daily.get("snowfall_sum"),
         "precip_hours": daily.get("precipitation_hours"),
         "wind_max_mph": daily.get("wind_speed_10m_max"),
         "gust_max_mph": daily.get("wind_gusts_10m_max"),
     })
 
-    # Convenience: convert snow from cm to inches (1 inch = 2.54 cm)
-    df["snow_in"] = df["snow_cm"].astype(float) / 2.54
+    df["snow_in"] = df["snow_in"].astype(float)
 
     # Optional: temp mean
     df["tmean_f"] = (df["tmax_f"].astype(float) + df["tmin_f"].astype(float)) / 2.0
 
-    # Keep tidy
-    df = df.drop(columns=["snow_cm"])
     return df
 
 def main():

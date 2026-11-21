@@ -13,10 +13,13 @@ data/*
 !data/final_test_results.csv
 !data/model_comparison.csv
 !data/ridge_weather_ablation.csv
+!data/rolling_origin_mae.csv
+!data/severe_weather_effects.csv
 
 # Ignore model outputs / plots
 plots/*
 !plots/model_comparison.png
+!plots/severe_weather_effect.png
 models/*
 checkpoints/*
 

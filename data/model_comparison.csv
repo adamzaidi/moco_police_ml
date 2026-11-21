@@ -1,11 +1,11 @@
 model,family,features,chosen_params,val_mae,test_mae,test_mae_sd
-Ridge regression,learned,all,alpha=10,29.593331833600722,29.21410464169992,0.0
-Gradient boosting,learned,all,"loss=absolute_error,learning_rate=0.03,max_leaf_nodes=31",29.834583735766916,28.704609501390603,0.0
+Ridge regression,learned,all,alpha=0.1,29.44214248083207,28.86137098200682,0.0
+Gradient boosting,learned,all,"loss=absolute_error,learning_rate=0.1,max_leaf_nodes=31",29.463669504089285,29.568316912124942,0.0
 Ridge regression,learned,no weather,alpha=100,31.348384717407882,28.13155896835509,0.0
 Gradient boosting,learned,no weather,"loss=squared_error,learning_rate=0.03,max_leaf_nodes=15",31.672576631422224,29.71998781263554,0.0
 Neural network,learned,no weather,5 seeds,35.79896621704101,32.14700508117676,0.6650397858103954
 "Mean of same weekday, last 4 weeks",naive,-,,35.922222222222224,33.44748858447489,0.0
 Mean of last 7 days,naive,-,,36.92142857142857,33.19021526418786,0.0
-Neural network,learned,all,5 seeds,40.49617080688476,41.91232757568359,1.3318683671741338
+Neural network,learned,all,5 seeds,40.22967529296875,40.98517608642578,0.9530920777280296
 Yesterday's count,naive,-,,44.077777777777776,43.06027397260274,0.0
 Same day last week,naive,-,,47.02777777777778,41.24931506849315,0.0

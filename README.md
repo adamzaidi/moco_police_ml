@@ -16,44 +16,94 @@ The main.py script runs the feature ablation in two stages. In the selection sta
 
 The compare_models.py script puts the neural network next to naive rules (yesterday, last week, 7-day mean, same-weekday mean), ridge regression, and gradient boosting, each with and without weather features, on the same split. It writes data/model_comparison.csv, plots/model_comparison.png, and data/ridge_weather_ablation.csv.
 
+The severe_weather.py script runs rolling-origin evaluation over six one-year windows (February 2020 to February 2026), training ridge and gradient boosting with and without weather on all data before each window. It then measures, for each weather category, how far incidents departed from the weather-blind prediction, with bootstrap confidence intervals. It writes data/rolling_origin_mae.csv, data/severe_weather_effects.csv, and plots/severe_weather_effect.png.
+
 ## Typical Workflow
 
-Set up the environment with Python 3.12: `python3.12 -m venv .venv && .venv/bin/pip install -r requirements.txt`. Place the raw input files in the data directory, build the feature table with `.venv/bin/python scripts/build_features.py`, train a single baseline model with `.venv/bin/python scripts/train_nn.py`, run the neural-network ablation with `.venv/bin/python main.py` (about ten minutes on a laptop CPU), and compare all models with `.venv/bin/python -m scripts.compare_models` (about a minute).
+Set up the environment with Python 3.12: `python3.12 -m venv .venv && .venv/bin/pip install -r requirements.txt`. Place the raw input files in the data directory, build the feature table with `.venv/bin/python scripts/build_features.py`, train a single baseline model with `.venv/bin/python scripts/train_nn.py`, run the neural-network ablation with `.venv/bin/python main.py` (about ten minutes on a laptop CPU), compare all models with `.venv/bin/python -m scripts.compare_models` (about a minute), and run the severe-weather analysis with `.venv/bin/python -m scripts.severe_weather` (about a minute).
 
 ## Results
 
-Test year: 2025-02-05 to 2026-02-04 (365 days); daily counts in this period average about 536. Every model below was fixed before the test year was scored: naive rules have no parameters, ridge and gradient boosting chose hyperparameters on validation, and the neural network is averaged over five seeds. Produced by `scripts/compare_models.py`.
+The data are police dispatch incidents in Montgomery County, Maryland, from May 2017 to February 2026, about 534 a day on average.
+
+### Does severe weather matter? Yes, snow most of all
+
+![Weather effects](plots/severe_weather_effect.png)
+
+Rolling-origin evaluation gives every day from February 2020 to February 2026 (2,190 days) an out-of-sample prediction: six consecutive one-year windows, each predicted by models trained only on earlier data (`scripts/severe_weather.py`). For each weather category, the bar shows how far actual incidents fell from a ridge model that knows the calendar and recent history but not the weather. That gap is the estimated weather effect.
+
+| Weather | Days | Effect vs weather-blind model | 95% CI | % of expected |
+|---|---|---|---|---|
+| Any snow | 111 | -20.9 | -29.8 to -11.5 | -4.2% |
+| Snow >= 1 in | 24 | -33.3 | -58.5 to -9.1 | -6.9% |
+| Snow >= 3 in | 8 | -57.9 | -107.0 to -10.3 | -12.0% |
+| Day after snow >= 1 in | 24 | -40.7 | -53.9 to -27.1 | -8.4% |
+| Ice risk (freeze + precipitation) | 149 | -11.0 | -18.9 to -2.6 | -2.2% |
+| Heavy rain (>= 0.75 in) | 98 | -11.4 | -19.8 to -3.6 | -2.1% |
+| Wind gusts >= 40 mph | 72 | +16.8 | +6.0 to +28.3 | +3.3% |
+| Hot (>= 90 F) | 145 | +0.1 | -5.8 to +6.6 | 0.0% |
+| Ordinary days | 1,737 | -1.3 | -3.1 to +0.3 | -0.2% |
+
+- **Snow has a clear dose-response effect.** Incidents fall about 4% on any snow day, 7% at an inch or more, and 12% at three inches or more. The drop lasts into the next day (-8%), presumably as roads stay bad and people stay home.
+- **Ice and heavy rain** each cut incidents by about 2%.
+- **High winds go the other way**, about 3% more incidents on days with gusts of 40 mph or more. This analysis can't say why; downed trees, power outages, and alarms are plausible.
+- **Mild variation does nothing.** Hot days and ordinary days sit on zero. This answers the project's starting question: severe weather has a real, measurable effect, and continuous small fluctuations do not.
+- **Why weather barely moves the yearly error.** Severe days are about 14% of the year, and most effects are 2 to 4%. Gradient boosting with weather features does capture the snow effect, cutting its error on 3-inch snow days by 18 incidents (CI 5 to 31). Spread over a whole year, that's a rounding error. Ridge's linear terms mostly miss the snow-day drop but catch the day-after effect through the streak features (+10 MAE on those days, CI 2 to 19). Gradient boosting's version is in `data/severe_weather_effects.csv`; it finds the same pattern with slightly larger effects.
+
+### Which model to use
 
 ![Model comparison](plots/model_comparison.png)
 
+Single test year, 2025-02-05 to 2026-02-04 (`scripts/compare_models.py`). Every model was fixed before the test year was scored: naive rules have no parameters, ridge and gradient boosting chose hyperparameters on validation, and the neural network is averaged over five seeds.
+
 | Model | Features | Validation MAE | Test MAE |
 |---|---|---|---|
-| Ridge regression | all | **29.59** | 29.21 |
-| Gradient boosting | all | 29.83 | 28.70 |
+| Ridge regression | all | **29.44** | 28.86 |
+| Gradient boosting | all | 29.46 | 29.57 |
 | Ridge regression | no weather | 31.35 | 28.13 |
 | Gradient boosting | no weather | 31.67 | 29.72 |
 | Neural network | no weather | 35.80 | 32.15 (sd 0.67) |
 | Mean of same weekday, last 4 weeks | - | 35.92 | 33.45 |
 | Mean of last 7 days | - | 36.92 | 33.19 |
-| Neural network | all | 40.50 | 41.91 (sd 1.33) |
+| Neural network | all | 40.23 | 40.99 (sd 0.95) |
 | Yesterday's count | - | 44.08 | 43.06 |
 | Same day last week | - | 47.03 | 41.25 |
 
-**The model you would actually pick** is the one with the best validation score, ridge regression on all features. Its test error is 29.2 incidents a day, about 5.5% of a typical day and 12% better than the best naive rule (a 7-day average, 33.2).
+One test year is a thin basis for choosing between close models; on this one, ridge without weather happens to score best. Averaged over the six rolling-origin windows (`data/rolling_origin_mae.csv`), the ranking is clearer:
 
-**Simple models beat the neural network.** With about 2,700 training days and 58 features, ridge and gradient boosting outperform the network by 3 to 13 points. The network with every feature is no better than guessing last week's count. On a dataset this size, its extra flexibility mostly goes into fitting noise.
+| Model | Mean MAE, 6 yearly windows | Windows won vs. no-weather version |
+|---|---|---|
+| **Ridge regression, all features** | **28.3** | 3 of 6 (1 tie) |
+| Ridge regression, no weather | 28.6 | |
+| Gradient boosting, all features | 31.0 | 5 of 6 |
+| Gradient boosting, no weather | 31.2 | |
+| Mean of last 7 days | 32.8 | |
 
-**Weather helps a little, but not reliably.** On validation, both ridge and gradient boosting do better with weather (by about 1.8 MAE). On the test year the picture is mixed: weather helps gradient boosting and slightly hurts ridge. Weather carries some signal, but it is small next to the calendar and recent-trend features, and its value shifts between periods.
+**Ridge regression with all features is the model to use:** about 28 incidents a day of error, roughly 5% of a typical day and 14% better than a 7-day average. Gradient boosting matches it in recent years but breaks down in the 2020 window (MAE 46.5), when it had only three years of pre-pandemic history to learn from.
 
-**No single weather variable matters; weather as a block does.** Repeating the weather ablation with ridge (`data/ridge_weather_ablation.csv`), removing all weather costs 1.8 MAE on validation, but removing any one group (temperature, precipitation, snow, flags, compound danger proxies, streaks) costs at most 0.15. The groups overlap heavily, so each can stand in for the others. This includes the severe-weather indicators: removing all 17 of them together costs 0.11.
+**Simple models beat the neural network.** With about 2,700 training days, ridge and gradient boosting beat the network by 2 to 13 points. The network with every feature does no better than guessing last week's count.
+
+**Weather helps as a block, not variable by variable.** Repeating the weather ablation with ridge (`data/ridge_weather_ablation.csv`), removing all weather costs 2.0 MAE on validation, but removing any single group (temperature, precipitation, snow, wind, flags, compound proxies, streaks) costs at most 0.2. The groups overlap, so each can stand in for the others.
 
 ### Why the neural network struggles with weather
 
-The neural-network ablation (`main.py`, results in `data/ablation_results.csv`) tells a different story from ridge, and the difference is about the model rather than the data. For the network, removing all weather improves validation MAE by 4.7, and raw temperature is the clearest culprit: removing the three temperature columns improves it by 3.6. Ridge, by contrast, is indifferent to those columns. The network appears to lean on temperature as a stand-in for season and then misfires when a year's temperatures don't follow the training pattern. The only weather features whose removal reliably hurts the network are the threshold flags, especially rain, which seem to offset part of that damage.
+The neural-network ablation (`main.py`, `data/ablation_results.csv`) tells a different story from ridge, and the difference comes from the model rather than the data. For the network, removing all weather improves validation MAE by 4.4, and raw temperature is the main culprit (removing the three temperature columns improves it by 2.5). Ridge is indifferent to those same columns. The network appears to lean on temperature as a stand-in for season, then misfires when a year's temperatures don't follow the training pattern. The only weather features whose removal reliably hurts the network are the threshold flags, especially rain.
 
-Earlier versions of this project ranked features by test MAE, which let the test set leak into feature selection, and left six compound and streak weather columns out of the ablation. Both are fixed.
+### Corrections
 
-**Limitations.** The validation window is a single half-year (August 2024 to February 2025), so selection never sees spring or summer; rolling-origin validation would be more robust, and the gap between validation and test rankings above is a sign of that. Weather features use each day's observed weather, which a real forecast would only know approximately. Flagging 47 neural-network comparisons at two standard errors will produce a few false positives.
+Earlier versions of this project had four problems, all now fixed:
+
+- Features were ranked on test MAE, which let the test set leak into feature selection.
+- Six compound and streak weather columns were left out of the ablation.
+- Snowfall was divided by 2.54 on the mistaken belief that Open-Meteo returns centimeters. It returns inches when asked for inches, so every snow total was 2.54 times too small and the 3-inch tier never fired.
+- Wind flags used sustained wind, which in this data never exceeds 30 mph, so "gale" never fired. They now use gusts, with the top tier at the National Weather Service wind-advisory threshold of 46 mph.
+
+**Limitations.**
+- Weather is observed weather at a single point near the county's center (39.15, -77.24). A real forecast would only know it approximately, and conditions vary across the county.
+- Effects are associations conditional on the calendar and recent history, not causal estimates. Snow days also bring school closures and remote work.
+- The 3-inch snow category has only 8 days, hence its wide interval.
+- Incidents are all dispatch types combined, so a drop in some types (traffic stops, say) can hide a rise in others (crashes).
+- Flagging 47 neural-network comparisons at two standard errors will produce a few false positives.
 
 ## Modeling Philosophy
 
@@ -65,5 +115,5 @@ The structure of the pipeline makes it possible to answer concrete questions abo
 
 ## Reproducibility and Extensions
 
-All experiments are reproducible due to fixed random seeds, deterministic transformations, and pinned dependencies in requirements.txt (verified to reproduce the original February 2026 numbers exactly). No derived data needs to be stored permanently, as all outputs can be regenerated from raw inputs. The project is designed to be extended easily, with natural next steps including seasonal interaction effects, weekday versus weekend differentiation, SHAP-style analysis layered on top of ablation results, or higher-resolution modeling if finer-grained incident data becomes available.
+All experiments are reproducible due to fixed random seeds, deterministic transformations, and pinned dependencies in requirements.txt (verified to reproduce the original February 2026 numbers exactly on the original data). No derived data needs to be stored permanently, as all outputs can be regenerated from raw inputs. The project is designed to be extended easily, with natural next steps including seasonal interaction effects, weekday versus weekend differentiation, a breakdown by dispatch type (do snow days cut traffic stops but add crashes?), forecast rather than observed weather, or higher-resolution modeling if finer-grained incident data becomes available.
 
