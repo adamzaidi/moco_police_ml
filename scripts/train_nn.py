@@ -95,6 +95,23 @@ def clip_to_train_bounds(
 
 
 # ============================================================
+# Time split (shared by every model in the project)
+# ============================================================
+TEST_DAYS = 365
+VAL_DAYS = 180
+
+
+def time_split(df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    """Test = last 365 days, val = the 180 days before that, train = everything earlier."""
+    test_cutoff = df["date"].max() - pd.Timedelta(days=TEST_DAYS)
+    val_cutoff = test_cutoff - pd.Timedelta(days=VAL_DAYS)
+    train = df[df["date"] <= val_cutoff].copy()
+    val = df[(df["date"] > val_cutoff) & (df["date"] <= test_cutoff)].copy()
+    test = df[df["date"] > test_cutoff].copy()
+    return train, val, test
+
+
+# ============================================================
 # Core: one callable training run (for main.py ablations)
 # ============================================================
 def train_eval(
@@ -149,13 +166,7 @@ def train_eval(
     # -----------------------
     # Time-aware split
     # -----------------------
-    max_date = df["date"].max()
-    test_cutoff = max_date - pd.Timedelta(days=365)
-    val_cutoff = test_cutoff - pd.Timedelta(days=180)
-
-    train = df[df["date"] <= val_cutoff].copy()
-    val = df[(df["date"] > val_cutoff) & (df["date"] <= test_cutoff)].copy()
-    test = df[df["date"] > test_cutoff].copy()
+    train, val, test = time_split(df)
 
     if verbose:
         print(

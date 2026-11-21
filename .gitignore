@@ -11,9 +11,12 @@ data/*
 # Small result tables are the project's findings; keep them visible
 !data/ablation_results.csv
 !data/final_test_results.csv
+!data/model_comparison.csv
+!data/ridge_weather_ablation.csv
 
 # Ignore model outputs / plots
 plots/*
+!plots/model_comparison.png
 models/*
 checkpoints/*
 

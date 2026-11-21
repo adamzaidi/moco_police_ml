@@ -14,11 +14,12 @@ Predicts daily Montgomery County (MD) police incident counts from lags, calendar
 3. `scripts/build_features.py`: `data/features_daily.csv` (lags, rolling means, DOW, holiday windows, weather tiers, streaks; past data only)
 4. `scripts/train_nn.py`: `train_eval()` is the single training entry point (MLP, Huber loss, early stopping on val)
 5. `main.py`: two-stage ablation (about 8 min for stage 1 on CPU)
-6. `scripts/baseline_models.py`: naive yesterday / last-week baselines
+6. `scripts/compare_models.py`: NN vs naive rules vs ridge vs gradient boosting, with/without weather; also a ridge weather-group ablation (about 1 min)
+7. `scripts/baseline_models.py`: original naive baselines script (superseded by compare_models)
 
 ## Evaluation rules (do not break)
 
-- Time split, in `train_eval`: test = last 365 days (2025-02-05 to 2026-02-04), val = the 180 days before that, train = everything earlier.
+- Time split, `time_split()` in `scripts/train_nn.py` (use it everywhere): test = last 365 days (2025-02-05 to 2026-02-04), val = the 180 days before that, train = everything earlier.
 - **Never select on test.** Model or feature selection calls `train_eval(evaluate_test=False)`, which returns only `best_val_mae`. Only an already-chosen configuration gets `evaluate_test=True`. The pre-Nov-2026 version ranked ablations by test MAE; that was leakage and the README says so.
 - Compare runs seed by seed (paired) over `SEEDS` in `main.py`; a change is "beyond noise" only past 2 SE. Single-seed differences of about 1 MAE are noise.
 - `save_outputs=False` stops `train_eval` overwriting `data/test_predictions_nn*.csv` during sweeps.
@@ -27,7 +28,8 @@ Predicts daily Montgomery County (MD) police incident counts from lags, calendar
 
 - `data/*` and `plots/*` are gitignored except `data/ablation_results.csv` and `data/final_test_results.csv` (the findings). The plots already tracked predate that rule.
 
-## Status (2026-11-20)
+## Status (2026-11-21)
 
-- Branch `honest-eval`: env + validation-only ablation. Result: NN with all features 41.91 test MAE vs naive last-week 41.25; NN with **no weather** 32.15. Raw temperature columns are the main source of harm; rain flags are the only weather features whose removal reliably hurts.
-- Next: (3) stronger baselines (7-day mean, ridge / gradient boosting on same features); (4) error on severe-weather days vs ordinary days, which is the project's actual question; consider rolling-origin validation (current val window is Aug-Feb only).
+- PR #1 `honest-eval`: env + validation-only NN ablation (all 33 weather cols).
+- PR #2 `model-comparison` (stacked on #1): ridge (all features) is the validation pick, test MAE 29.21 vs best naive 33.19; NN best 32.15. Weather helps ridge/GBM on val by ~1.8 but is mixed on test; no single weather group matters under ridge (redundant block). NN's temperature sensitivity is a model artifact.
+- Next: (4) severe-weather days vs ordinary days, using ridge/GBM residuals (the project's real question); rolling-origin validation (val/test rankings disagree, val is Aug-Feb only).

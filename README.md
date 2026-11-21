@@ -14,30 +14,46 @@ The data directory is expected to contain raw input files such as daily_counts.c
 
 The main.py script runs the feature ablation in two stages. In the selection stage it trains the baseline model and one model per removed weather feature or feature group, each over five seeds, and ranks every run by validation MAE only; the test set is never scored, so it cannot influence which features are kept. Each removal is compared to the baseline seed by seed, and a change is flagged as real only when it exceeds two standard errors. In the evaluation stage it scores the test set exactly once, for two configurations: the all-features baseline and the run with the best validation MAE, reported next to naive baselines. Results go to data/ablation_results.csv (validation ranking) and data/final_test_results.csv (test scores).
 
+The compare_models.py script puts the neural network next to naive rules (yesterday, last week, 7-day mean, same-weekday mean), ridge regression, and gradient boosting, each with and without weather features, on the same split. It writes data/model_comparison.csv, plots/model_comparison.png, and data/ridge_weather_ablation.csv.
+
 ## Typical Workflow
 
-Set up the environment with Python 3.12: `python3.12 -m venv .venv && .venv/bin/pip install -r requirements.txt`. Place the raw input files in the data directory, build the feature table with `.venv/bin/python scripts/build_features.py`, train a single baseline model with `.venv/bin/python scripts/train_nn.py`, and run the full ablation with `.venv/bin/python main.py` (about ten minutes on a laptop CPU).
+Set up the environment with Python 3.12: `python3.12 -m venv .venv && .venv/bin/pip install -r requirements.txt`. Place the raw input files in the data directory, build the feature table with `.venv/bin/python scripts/build_features.py`, train a single baseline model with `.venv/bin/python scripts/train_nn.py`, run the neural-network ablation with `.venv/bin/python main.py` (about ten minutes on a laptop CPU), and compare all models with `.venv/bin/python -m scripts.compare_models` (about a minute).
 
 ## Results
 
-Test year: 2025-02-05 to 2026-02-04 (365 days). Mean absolute error in daily incidents, averaged over five seeds; daily counts in this period average about 536.
+Test year: 2025-02-05 to 2026-02-04 (365 days); daily counts in this period average about 536. Every model below was fixed before the test year was scored: naive rules have no parameters, ridge and gradient boosting chose hyperparameters on validation, and the neural network is averaged over five seeds. Produced by `scripts/compare_models.py`.
 
-| Model | Test MAE |
-|---|---|
-| Naive: yesterday's count | 43.06 |
-| Neural network, all features | 41.91 (sd 1.33) |
-| Naive: same day last week | 41.25 |
-| **Neural network, no weather features** | **32.15** (sd 0.67) |
+![Model comparison](plots/model_comparison.png)
 
-The model with every feature does no better than guessing last week's count. Removing all 33 weather columns was the best configuration on validation, and it held up on the untouched test year, cutting error by about a quarter. Calendar structure, lags, and holidays carry the signal; in this setup, weather mostly adds noise.
+| Model | Features | Validation MAE | Test MAE |
+|---|---|---|---|
+| Ridge regression | all | **29.59** | 29.21 |
+| Gradient boosting | all | 29.83 | 28.70 |
+| Ridge regression | no weather | 31.35 | 28.13 |
+| Gradient boosting | no weather | 31.67 | 29.72 |
+| Neural network | no weather | 35.80 | 32.15 (sd 0.67) |
+| Mean of same weekday, last 4 weeks | - | 35.92 | 33.45 |
+| Mean of last 7 days | - | 36.92 | 33.19 |
+| Neural network | all | 40.50 | 41.91 (sd 1.33) |
+| Yesterday's count | - | 44.08 | 43.06 |
+| Same day last week | - | 47.03 | 41.25 |
 
-The ablation shows where that noise comes from. Raw temperature is the clearest problem: removing the three temperature columns improves validation MAE by 3.6, and each one hurts on its own. The only weather features whose removal reliably makes things worse are the threshold flags, especially rain (`is_rainy`, `is_heavy_rain`): with the rest of the weather left in, they appear to offset damage done by the raw measurements. The compound danger proxies (ice risk, blowing snow, storms) and the recent-weather streak counts show no reliable effect either way. Most single-feature effects fall within seed noise.
+**The model you would actually pick** is the one with the best validation score, ridge regression on all features. Its test error is 29.2 incidents a day, about 5.5% of a typical day and 12% better than the best naive rule (a 7-day average, 33.2).
 
-On the motivating question, whether severe weather matters more than mild variation: the answer so far is that neither improves the model on average. Severe days are rare, though, so an average over the year can hide them. A direct comparison of errors on severe-weather days is the next step.
+**Simple models beat the neural network.** With about 2,700 training days and 58 features, ridge and gradient boosting outperform the network by 3 to 13 points. The network with every feature is no better than guessing last week's count. On a dataset this size, its extra flexibility mostly goes into fitting noise.
 
-Earlier versions of this project ranked features by test MAE, which let the test set leak into feature selection and overstated results. The current pipeline selects on validation only.
+**Weather helps a little, but not reliably.** On validation, both ridge and gradient boosting do better with weather (by about 1.8 MAE). On the test year the picture is mixed: weather helps gradient boosting and slightly hurts ridge. Weather carries some signal, but it is small next to the calendar and recent-trend features, and its value shifts between periods.
 
-**Limitations.** The validation window is a single half-year (August 2024 to February 2025), so selection never sees spring or summer; rolling-origin validation would be more robust. Validation also drives early stopping, which makes validation scores slightly optimistic, which is why the chosen configuration is confirmed on the test year rather than trusted on its own. Flagging 47 comparisons at two standard errors will produce a few false positives.
+**No single weather variable matters; weather as a block does.** Repeating the weather ablation with ridge (`data/ridge_weather_ablation.csv`), removing all weather costs 1.8 MAE on validation, but removing any one group (temperature, precipitation, snow, flags, compound danger proxies, streaks) costs at most 0.15. The groups overlap heavily, so each can stand in for the others. This includes the severe-weather indicators: removing all 17 of them together costs 0.11.
+
+### Why the neural network struggles with weather
+
+The neural-network ablation (`main.py`, results in `data/ablation_results.csv`) tells a different story from ridge, and the difference is about the model rather than the data. For the network, removing all weather improves validation MAE by 4.7, and raw temperature is the clearest culprit: removing the three temperature columns improves it by 3.6. Ridge, by contrast, is indifferent to those columns. The network appears to lean on temperature as a stand-in for season and then misfires when a year's temperatures don't follow the training pattern. The only weather features whose removal reliably hurts the network are the threshold flags, especially rain, which seem to offset part of that damage.
+
+Earlier versions of this project ranked features by test MAE, which let the test set leak into feature selection, and left six compound and streak weather columns out of the ablation. Both are fixed.
+
+**Limitations.** The validation window is a single half-year (August 2024 to February 2025), so selection never sees spring or summer; rolling-origin validation would be more robust, and the gap between validation and test rankings above is a sign of that. Weather features use each day's observed weather, which a real forecast would only know approximately. Flagging 47 neural-network comparisons at two standard errors will produce a few false positives.
 
 ## Modeling Philosophy
 
@@ -49,5 +65,5 @@ The structure of the pipeline makes it possible to answer concrete questions abo
 
 ## Reproducibility and Extensions
 
-All experiments are reproducible due to fixed random seeds, deterministic transformations, and pinned dependencies in requirements.txt (verified to reproduce the original February 2026 numbers exactly). No derived data needs to be stored permanently, as all outputs can be regenerated from raw inputs. The project is designed to be extended easily, with natural next steps including seasonal interaction effects, weekday versus weekend differentiation, SHAP-style analysis layered on top of ablation results, comparisons to simpler statistical baselines, or higher-resolution modeling if finer-grained incident data becomes available.
+All experiments are reproducible due to fixed random seeds, deterministic transformations, and pinned dependencies in requirements.txt (verified to reproduce the original February 2026 numbers exactly). No derived data needs to be stored permanently, as all outputs can be regenerated from raw inputs. The project is designed to be extended easily, with natural next steps including seasonal interaction effects, weekday versus weekend differentiation, SHAP-style analysis layered on top of ablation results, or higher-resolution modeling if finer-grained incident data becomes available.
 
