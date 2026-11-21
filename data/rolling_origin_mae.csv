@@ -1,0 +1,31 @@
+window,model,features,mae,train_days,chosen_params
+2020-02 to 2021-02,Mean of last 7 days,-,32.112720156555774,831,
+2020-02 to 2021-02,Ridge regression,all,33.94736164426632,1011,alpha=10
+2020-02 to 2021-02,Ridge regression,no weather,32.271820864425116,1011,alpha=100
+2020-02 to 2021-02,Gradient boosting,all,46.513805046061265,1011,"loss=absolute_error,learning_rate=0.03,max_leaf_nodes=15"
+2020-02 to 2021-02,Gradient boosting,no weather,39.98759819486525,1011,"loss=absolute_error,learning_rate=0.03,max_leaf_nodes=15"
+2021-02 to 2022-02,Mean of last 7 days,-,31.51076320939335,1196,
+2021-02 to 2022-02,Ridge regression,all,25.9577078216848,1376,alpha=100
+2021-02 to 2022-02,Ridge regression,no weather,27.766907788859434,1376,alpha=100
+2021-02 to 2022-02,Gradient boosting,all,27.530171025392374,1376,"loss=absolute_error,learning_rate=0.03,max_leaf_nodes=31"
+2021-02 to 2022-02,Gradient boosting,no weather,29.969337274774343,1376,"loss=absolute_error,learning_rate=0.03,max_leaf_nodes=31"
+2022-02 to 2023-02,Mean of last 7 days,-,30.936594911937373,1561,
+2022-02 to 2023-02,Ridge regression,all,24.8507801262588,1741,alpha=100
+2022-02 to 2023-02,Ridge regression,no weather,26.143864971566764,1741,alpha=1
+2022-02 to 2023-02,Gradient boosting,all,25.56735993370535,1741,"loss=absolute_error,learning_rate=0.03,max_leaf_nodes=31"
+2022-02 to 2023-02,Gradient boosting,no weather,27.647908190104175,1741,"loss=absolute_error,learning_rate=0.1,max_leaf_nodes=15"
+2023-02 to 2024-02,Mean of last 7 days,-,35.46692759295499,1926,
+2023-02 to 2024-02,Ridge regression,all,28.85086688439481,2106,alpha=1000
+2023-02 to 2024-02,Ridge regression,no weather,28.886671755748576,2106,alpha=100
+2023-02 to 2024-02,Gradient boosting,all,29.480254551682332,2106,"loss=squared_error,learning_rate=0.03,max_leaf_nodes=15"
+2023-02 to 2024-02,Gradient boosting,no weather,30.14412281801386,2106,"loss=absolute_error,learning_rate=0.03,max_leaf_nodes=31"
+2024-02 to 2025-02,Mean of last 7 days,-,33.5972602739726,2291,
+2024-02 to 2025-02,Ridge regression,all,27.597586103992505,2471,alpha=10
+2024-02 to 2025-02,Ridge regression,no weather,28.651188603104774,2471,alpha=100
+2024-02 to 2025-02,Gradient boosting,all,27.281723920433365,2471,"loss=absolute_error,learning_rate=0.03,max_leaf_nodes=31"
+2024-02 to 2025-02,Gradient boosting,no weather,29.658200655700302,2471,"loss=absolute_error,learning_rate=0.03,max_leaf_nodes=31"
+2025-02 to 2026-02,Mean of last 7 days,-,33.19021526418786,2656,
+2025-02 to 2026-02,Ridge regression,all,28.686870680240382,2836,alpha=0.1
+2025-02 to 2026-02,Ridge regression,no weather,28.07238153164049,2836,alpha=100
+2025-02 to 2026-02,Gradient boosting,all,29.455103065185938,2836,"loss=absolute_error,learning_rate=0.1,max_leaf_nodes=31"
+2025-02 to 2026-02,Gradient boosting,no weather,29.710113604605436,2836,"loss=squared_error,learning_rate=0.03,max_leaf_nodes=15"

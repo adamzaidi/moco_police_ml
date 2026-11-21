@@ -47,6 +47,21 @@ OUT_RIDGE_ABL = BASE_DIR / "data" / "ridge_weather_ablation.csv"
 NN_SEEDS = [0, 1, 2, 3, 4]
 
 
+LEARNERS = {
+    "Ridge regression": (
+        lambda alpha: make_pipeline(StandardScaler(), Ridge(alpha=alpha)),
+        {"alpha": [0.1, 1, 10, 100, 1000]},
+    ),
+    "Gradient boosting": (
+        lambda loss, learning_rate, max_leaf_nodes: HistGradientBoostingRegressor(
+            loss=loss, learning_rate=learning_rate, max_leaf_nodes=max_leaf_nodes,
+            max_iter=300, random_state=0),
+        {"loss": ["squared_error", "absolute_error"], "learning_rate": [0.03, 0.1],
+         "max_leaf_nodes": [15, 31]},
+    ),
+}
+
+
 def mae(y, p) -> float:
     return float(mean_absolute_error(y, p))
 
@@ -82,19 +97,7 @@ def fit_select(make_model, grid: dict, Xtr, ytr, Xva, yva):
 
 
 def learned_rows(train, val, test, feature_sets: dict) -> list[dict]:
-    learners = {
-        "Ridge regression": (
-            lambda alpha: make_pipeline(StandardScaler(), Ridge(alpha=alpha)),
-            {"alpha": [0.1, 1, 10, 100, 1000]},
-        ),
-        "Gradient boosting": (
-            lambda loss, learning_rate, max_leaf_nodes: HistGradientBoostingRegressor(
-                loss=loss, learning_rate=learning_rate, max_leaf_nodes=max_leaf_nodes,
-                max_iter=300, random_state=0),
-            {"loss": ["squared_error", "absolute_error"], "learning_rate": [0.03, 0.1],
-             "max_leaf_nodes": [15, 31]},
-        ),
-    }
+    learners = LEARNERS
     rows = []
     for (lname, (make_model, grid)), (fname, cols) in itertools.product(learners.items(), feature_sets.items()):
         X = {k: transform_weather(d[cols]) for k, d in (("tr", train), ("va", val), ("te", test))}

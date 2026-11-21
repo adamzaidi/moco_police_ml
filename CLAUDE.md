@@ -15,7 +15,8 @@ Predicts daily Montgomery County (MD) police incident counts from lags, calendar
 4. `scripts/train_nn.py`: `train_eval()` is the single training entry point (MLP, Huber loss, early stopping on val)
 5. `main.py`: two-stage ablation (about 8 min for stage 1 on CPU)
 6. `scripts/compare_models.py`: NN vs naive rules vs ridge vs gradient boosting, with/without weather; also a ridge weather-group ablation (about 1 min)
-7. `scripts/baseline_models.py`: original naive baselines script (superseded by compare_models)
+7. `scripts/severe_weather.py`: rolling-origin (6 yearly windows, Feb 2020-Feb 2026) out-of-sample predictions for ridge/GBM with and without weather; per-category weather effects with bootstrap CIs (about 1 min)
+8. `scripts/baseline_models.py`: original naive baselines script (superseded by compare_models)
 
 ## Evaluation rules (do not break)
 
@@ -24,12 +25,18 @@ Predicts daily Montgomery County (MD) police incident counts from lags, calendar
 - Compare runs seed by seed (paired) over `SEEDS` in `main.py`; a change is "beyond noise" only past 2 SE. Single-seed differences of about 1 MAE are noise.
 - `save_outputs=False` stops `train_eval` overwriting `data/test_predictions_nn*.csv` during sweeps.
 
+## Weather data gotchas
+
+- Open-Meteo `snowfall_sum` is already in inches when `precipitation_unit=inch` (check `daily_units` in the response). Pre-Nov-2026 code divided by 2.54, so snow was 2.54x too small and ">= 3 in" never fired.
+- Open-Meteo daily sustained wind tops out around 30 mph here; wind flags/tiers use **gusts** (windy >= 40, top tier >= 46 = NWS wind advisory).
+- `END_DATE` in the fetch script is pinned to the last incident date. Open-Meteo revises its archive slightly (a few days of temps move > 1 F), so refetches won't be bit-identical.
+
 ## Data / git
 
 - `data/*` and `plots/*` are gitignored except `data/ablation_results.csv` and `data/final_test_results.csv` (the findings). The plots already tracked predate that rule.
 
 ## Status (2026-11-21)
 
-- PR #1 `honest-eval`: env + validation-only NN ablation (all 33 weather cols).
-- PR #2 `model-comparison` (stacked on #1): ridge (all features) is the validation pick, test MAE 29.21 vs best naive 33.19; NN best 32.15. Weather helps ridge/GBM on val by ~1.8 but is mixed on test; no single weather group matters under ridge (redundant block). NN's temperature sensitivity is a model artifact.
-- Next: (4) severe-weather days vs ordinary days, using ridge/GBM residuals (the project's real question); rolling-origin validation (val/test rankings disagree, val is Aug-Feb only).
+- PR #1 `honest-eval`: env + validation-only NN ablation. PR #2 `model-comparison`: NN vs naive vs ridge vs GBM. PR #3 `severe-weather` (stacked on #2): fixes snow units + wind thresholds, reruns everything, adds rolling-origin severe-weather analysis. Merge in order.
+- Findings: ridge with all features is the pick (rolling-origin mean MAE 28.3 vs 28.6 no-weather, GBM 31.0, 7-day mean 32.8). Snow has a clear dose-response effect (any snow -4%, >=1 in -7%, >=3 in -12%, day after >=1 in -8%); ice and heavy rain about -2%; gusts >= 40 mph about +3%; heat none. Severe days are ~14% of days, which is why yearly MAE barely moves with weather.
+- Next ideas: incident-type breakdown (raw_incidents has crime categories?), weather forecasts instead of observed weather, holiday x weather interactions.

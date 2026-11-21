@@ -155,7 +155,9 @@ if has_weather:
     df["is_rainy"] = (df["precip_in"] >= 0.10).astype(int)
     df["is_heavy_rain"] = (df["precip_in"] >= 0.75).astype(int)
     df["is_snow_day"] = (df["snow_in"] > 0.0).astype(int)
-    df["is_windy"] = (df["wind_max_mph"] >= 25).astype(int)
+    # Wind flags use gusts: Open-Meteo daily sustained wind is smoothed and never
+    # exceeds ~30 mph here, so sustained-wind thresholds almost never fire.
+    df["is_windy"] = (df["gust_max_mph"] >= 40).astype(int)
     df["is_hot_day"] = (df["tmax_f"] >= 90).astype(int)
     df["is_freeze_night"] = (df["tmin_f"] <= 32).astype(int)
 
@@ -171,19 +173,20 @@ if has_weather:
     df["rain_heavy"] = (df["rain_in"] >= 1.0).astype(int)
 
     # Wind tiers
-    df["wind_breezy"] = ((df["wind_max_mph"] >= 15) & (df["wind_max_mph"] < 25)).astype(int)
-    df["wind_windy"]  = ((df["wind_max_mph"] >= 25) & (df["wind_max_mph"] < 35)).astype(int)
-    df["wind_gale"]   = (df["wind_max_mph"] >= 35).astype(int)
+    # Wind tiers (gusts); top tier = NWS wind advisory gust threshold (46 mph)
+    df["wind_breezy"] = ((df["gust_max_mph"] >= 30) & (df["gust_max_mph"] < 40)).astype(int)
+    df["wind_windy"]  = ((df["gust_max_mph"] >= 40) & (df["gust_max_mph"] < 46)).astype(int)
+    df["wind_gale"]   = (df["gust_max_mph"] >= 46).astype(int)
 
     # --- Compound danger proxies ---
     # Ice risk: freezing overnight + any precip
     df["is_ice_risk"] = ((df["tmin_f"] <= 32) & (df["precip_in"] > 0)).astype(int)
 
     # Blowing snow proxy: meaningful snow + windy
-    df["is_blowing_snow"] = ((df["snow_in"] >= 1) & (df["wind_max_mph"] >= 25)).astype(int)
+    df["is_blowing_snow"] = ((df["snow_in"] >= 1) & (df["gust_max_mph"] >= 35)).astype(int)
 
     # Heavy rain + windy: storm proxy
-    df["is_stormy"] = ((df["rain_in"] >= 1.0) & (df["wind_max_mph"] >= 25)).astype(int)
+    df["is_stormy"] = ((df["rain_in"] >= 1.0) & (df["gust_max_mph"] >= 35)).astype(int)
 
     # --- Rolling 30-day normals (past-only) + anomalies ---
     df["tmean_roll30"] = df["tmean_f"].shift(1).rolling(30, min_periods=30).mean()
