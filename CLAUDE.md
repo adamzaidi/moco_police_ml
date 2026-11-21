@@ -16,7 +16,9 @@ Predicts daily Montgomery County (MD) police incident counts from lags, calendar
 5. `main.py`: two-stage ablation (about 8 min for stage 1 on CPU)
 6. `scripts/compare_models.py`: NN vs naive rules vs ridge vs gradient boosting, with/without weather; also a ridge weather-group ablation (about 1 min)
 7. `scripts/severe_weather.py`: rolling-origin (6 yearly windows, Feb 2020-Feb 2026) out-of-sample predictions for ridge/GBM with and without weather; per-category weather effects with bootstrap CIs (about 1 min)
-8. `scripts/baseline_models.py`: original naive baselines script (superseded by compare_models)
+8. `scripts/make_category_series.py`: maps 233 `Initial Type` values to 9 categories (ordered substring rules; first match wins) + `Crash report filed` series; reads the 560 MB raw CSV (about 1 min)
+9. `scripts/weather_by_type.py`: per-category rolling-origin ridge weather effects + heatmap (about 10 s)
+10. `scripts/baseline_models.py`: original naive baselines script (superseded by compare_models)
 
 ## Evaluation rules (do not break)
 
@@ -37,6 +39,7 @@ Predicts daily Montgomery County (MD) police incident counts from lags, calendar
 
 ## Status (2026-11-21)
 
-- PR #1 `honest-eval`: env + validation-only NN ablation. PR #2 `model-comparison`: NN vs naive vs ridge vs GBM. PR #3 `severe-weather` (stacked on #2): fixes snow units + wind thresholds, reruns everything, adds rolling-origin severe-weather analysis. Merge in order.
+- PR #1 `honest-eval`: env + validation-only NN ablation. PR #2 `model-comparison`: NN vs naive vs ridge vs GBM. PR #3 `severe-weather` (stacked on #2): fixes snow units + wind thresholds, reruns everything, adds rolling-origin severe-weather analysis. PR #4 (stacked on #3): dispatch-type breakdown. Merge in order.
 - Findings: ridge with all features is the pick (rolling-origin mean MAE 28.3 vs 28.6 no-weather, GBM 31.0, 7-day mean 32.8). Snow has a clear dose-response effect (any snow -4%, >=1 in -7%, >=3 in -12%, day after >=1 in -8%); ice and heavy rain about -2%; gusts >= 40 mph about +3%; heat none. Severe days are ~14% of days, which is why yearly MAE barely moves with weather.
-- Next ideas: incident-type breakdown (raw_incidents has crime categories?), weather forecasts instead of observed weather, holiday x weather interactions.
+- PR #4 `dispatch-types` (stacked on #3): snow cuts crime/disorder 13-16% and raises crash calls 23% (but filed crash reports fall); gusts raise alarms 27% (explains the wind effect) and TRAFFIC VIOLATION calls 24% (unexplained).
+- Next ideas: district/beat-level effects, forecast vs observed weather, holiday x weather interactions.

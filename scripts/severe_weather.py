@@ -65,7 +65,8 @@ CATEGORIES = {
 SEVERE = ["Any snow", "Ice risk (freeze + precip)", "Heavy rain (>= 0.75 in)", "Gusts >= 40 mph"]
 
 
-def rolling_predictions(df: pd.DataFrame, feature_sets: dict) -> tuple[pd.DataFrame, pd.DataFrame]:
+def rolling_predictions(df: pd.DataFrame, feature_sets: dict, learners: dict = LEARNERS,
+                        verbose: bool = True) -> tuple[pd.DataFrame, pd.DataFrame]:
     end = df["date"].max()
     preds, roll_rows = [], []
     for k in range(N_WINDOWS - 1, -1, -1):  # oldest window first
@@ -83,7 +84,7 @@ def rolling_predictions(df: pd.DataFrame, feature_sets: dict) -> tuple[pd.DataFr
         roll_rows.append({"window": label, "model": "Mean of last 7 days", "features": "-",
                           "mae": mae(te["incident_count"], te["roll_mean_7"]), "train_days": len(tr)})
 
-        for lname, (make_model, grid) in LEARNERS.items():
+        for lname, (make_model, grid) in learners.items():
             for fname, cols in feature_sets.items():
                 X = {n: transform_weather(d[cols]) for n, d in (("tr", tr), ("va", va), ("te", te))}
                 _, params, _ = fit_select(make_model, grid, X["tr"], tr["incident_count"], X["va"], va["incident_count"])
@@ -95,7 +96,8 @@ def rolling_predictions(df: pd.DataFrame, feature_sets: dict) -> tuple[pd.DataFr
                                   "mae": mae(te["incident_count"], p), "train_days": len(hist),
                                   "chosen_params": ",".join(f"{a}={b}" for a, b in params.items())})
         preds.append(out)
-        print(f"  window {label}: train {len(hist)} days, test {len(te)}", flush=True)
+        if verbose:
+            print(f"  window {label}: train {len(hist)} days, test {len(te)}", flush=True)
     return pd.concat(preds, ignore_index=True), pd.DataFrame(roll_rows)
 
 

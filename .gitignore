@@ -15,11 +15,14 @@ data/*
 !data/ridge_weather_ablation.csv
 !data/rolling_origin_mae.csv
 !data/severe_weather_effects.csv
+!data/dispatch_type_map.csv
+!data/weather_effects_by_type.csv
 
 # Ignore model outputs / plots
 plots/*
 !plots/model_comparison.png
 !plots/severe_weather_effect.png
+!plots/weather_effects_by_type.png
 models/*
 checkpoints/*
 
