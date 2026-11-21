@@ -18,9 +18,11 @@ The compare_models.py script puts the neural network next to naive rules (yester
 
 The severe_weather.py script runs rolling-origin evaluation over six one-year windows (February 2020 to February 2026), training ridge and gradient boosting with and without weather on all data before each window. It then measures, for each weather category, how far incidents departed from the weather-blind prediction, with bootstrap confidence intervals. It writes data/rolling_origin_mae.csv, data/severe_weather_effects.csv, and plots/severe_weather_effect.png.
 
+The make_category_series.py script maps every dispatch type to one of nine categories (traffic crash, traffic enforcement, alarm, violent/person, property, disorder/suspicious, welfare/mental health, animal, other) and builds daily counts per category, plus a count of incidents with a crash report attached. The weather_by_type.py script reruns the rolling-origin weather analysis for each category and draws the heatmap above (data/weather_effects_by_type.csv, plots/weather_effects_by_type.png).
+
 ## Typical Workflow
 
-Set up the environment with Python 3.12: `python3.12 -m venv .venv && .venv/bin/pip install -r requirements.txt`. Place the raw input files in the data directory, build the feature table with `.venv/bin/python scripts/build_features.py`, train a single baseline model with `.venv/bin/python scripts/train_nn.py`, run the neural-network ablation with `.venv/bin/python main.py` (about ten minutes on a laptop CPU), compare all models with `.venv/bin/python -m scripts.compare_models` (about a minute), and run the severe-weather analysis with `.venv/bin/python -m scripts.severe_weather` (about a minute).
+Set up the environment with Python 3.12: `python3.12 -m venv .venv && .venv/bin/pip install -r requirements.txt`. Place the raw input files in the data directory, build the feature table with `.venv/bin/python scripts/build_features.py`, train a single baseline model with `.venv/bin/python scripts/train_nn.py`, run the neural-network ablation with `.venv/bin/python main.py` (about ten minutes on a laptop CPU), compare all models with `.venv/bin/python -m scripts.compare_models` (about a minute), run the severe-weather analysis with `.venv/bin/python -m scripts.severe_weather` (about a minute), and break it down by dispatch type with `.venv/bin/python scripts/make_category_series.py` followed by `.venv/bin/python -m scripts.weather_by_type`.
 
 ## Results
 
@@ -49,6 +51,19 @@ Rolling-origin evaluation gives every day from February 2020 to February 2026 (2
 - **High winds go the other way**, about 3% more incidents on days with gusts of 40 mph or more. This analysis can't say why; downed trees, power outages, and alarms are plausible.
 - **Mild variation does nothing.** Hot days and ordinary days sit on zero. This answers the project's starting question: severe weather has a real, measurable effect, and continuous small fluctuations do not.
 - **Why weather barely moves the yearly error.** Severe days are about 14% of the year, and most effects are 2 to 4%. Gradient boosting with weather features does capture the snow effect, cutting its error on 3-inch snow days by 18 incidents (CI 5 to 31). Spread over a whole year, that's a rounding error. Ridge's linear terms mostly miss the snow-day drop but catch the day-after effect through the streak features (+10 MAE on those days, CI 2 to 19). Gradient boosting's version is in `data/severe_weather_effects.csv`; it finds the same pattern with slightly larger effects.
+
+### Which incidents does weather move?
+
+![Weather effects by dispatch type](plots/weather_effects_by_type.png)
+
+The total hides opposite movements underneath. `scripts/make_category_series.py` maps all 233 dispatch types into nine categories with explicit rules (the full mapping is in `data/dispatch_type_map.csv`). `scripts/weather_by_type.py` then repeats the rolling-origin analysis for each category, using that category's own history. As a check, its "All incidents" row reproduces the aggregate results above exactly.
+
+- **Snow suppresses crime and disorder.** On days with an inch or more of snow, property, disorder, and violent/person calls each fall 13 to 16%, and animal calls 28%. The drop carries into the next day.
+- **Snow raises crash calls but not serious crashes.** Traffic-crash calls rise 23% on snow days. Only 25% of those calls end with a crash report, though, against 38% on ordinary days, and the count of filed crash reports falls (17% on the day, not significant with 24 days; 22% the next day, significant). The extra calls look like slide-offs and stuck vehicles; fewer people on the road means fewer serious collisions.
+- **Wind's effect is mostly alarms.** Alarm calls rise 27% on days with gusts of 40 mph or more, which accounts for most of the 3% rise in total incidents on those days. Calls dispatched as traffic violations also rise 24% on gusty days; the data can't say why.
+- **Heat barely registers.** On 90-degree days the shifts are small: welfare and mental-health calls up 4%, property up 3%, animal calls down 6%, and the total unchanged.
+
+These are 66 comparisons at 95% confidence, so expect a few of the smaller bold cells to be chance. The large effects (snow on crime, wind on alarms, snow on crash calls) are far outside that range.
 
 ### Which model to use
 
@@ -102,7 +117,7 @@ Earlier versions of this project had four problems, all now fixed:
 - Weather is observed weather at a single point near the county's center (39.15, -77.24). A real forecast would only know it approximately, and conditions vary across the county.
 - Effects are associations conditional on the calendar and recent history, not causal estimates. Snow days also bring school closures and remote work.
 - The 3-inch snow category has only 8 days, hence its wide interval.
-- Incidents are all dispatch types combined, so a drop in some types (traffic stops, say) can hide a rise in others (crashes).
+- Dispatch categories reflect how a call was first classified, not what was found; the category rules are judgment calls, listed in full in `data/dispatch_type_map.csv`.
 - Flagging 47 neural-network comparisons at two standard errors will produce a few false positives.
 
 ## Modeling Philosophy
@@ -115,5 +130,5 @@ The structure of the pipeline makes it possible to answer concrete questions abo
 
 ## Reproducibility and Extensions
 
-All experiments are reproducible due to fixed random seeds, deterministic transformations, and pinned dependencies in requirements.txt (verified to reproduce the original February 2026 numbers exactly on the original data). No derived data needs to be stored permanently, as all outputs can be regenerated from raw inputs. The project is designed to be extended easily, with natural next steps including seasonal interaction effects, weekday versus weekend differentiation, a breakdown by dispatch type (do snow days cut traffic stops but add crashes?), forecast rather than observed weather, or higher-resolution modeling if finer-grained incident data becomes available.
+All experiments are reproducible due to fixed random seeds, deterministic transformations, and pinned dependencies in requirements.txt (verified to reproduce the original February 2026 numbers exactly on the original data). No derived data needs to be stored permanently, as all outputs can be regenerated from raw inputs. The project is designed to be extended easily, with natural next steps including seasonal interaction effects, weekday versus weekend differentiation, police district-level effects (the data has district and beat), forecast rather than observed weather, or higher-resolution modeling if finer-grained incident data becomes available.
 
