@@ -55,6 +55,9 @@ def get_weather_cols(df: pd.DataFrame) -> List[str]:
         "precip_hours", "wind_max_mph", "gust_max_mph",
         "temp_anom_30", "precip_anom_30",
         "is_rainy", "is_heavy_rain", "is_snow_day", "is_windy", "is_hot_day", "is_freeze_night",
+        # compound danger proxies + past-3-day streak counts
+        "is_ice_risk", "is_blowing_snow", "is_stormy",
+        "snow_days_last3", "heavy_snow_last3", "heavy_rain_last3", "ice_risk_last3",
     }
     out: List[str] = []
     for c in df.columns:
@@ -84,6 +87,16 @@ def define_weather_groups(weather_cols: List[str]) -> Dict[str, List[str]]:
         "drop_weather_flags_rain": keep(["is_rainy", "is_heavy_rain"]),
         "drop_weather_flags_wind": keep(["is_windy"]),
         "drop_weather_flags_heat": keep(["is_hot_day"]),
+        # Compound danger proxies and recent-weather streaks
+        "drop_weather_compound": keep(["is_ice_risk", "is_blowing_snow", "is_stormy"]),
+        "drop_weather_streaks": keep(["snow_days_last3", "heavy_snow_last3", "heavy_rain_last3", "ice_risk_last3"]),
+        # Every severe-weather indicator: flags, heavy tiers, compound, streaks
+        "drop_weather_severe_all": keep([
+            "is_heavy_rain", "is_snow_day", "is_windy", "is_hot_day", "is_freeze_night",
+            "snow_mod", "snow_heavy", "rain_heavy", "wind_windy", "wind_gale",
+            "is_ice_risk", "is_blowing_snow", "is_stormy",
+            "snow_days_last3", "heavy_snow_last3", "heavy_rain_last3", "ice_risk_last3",
+        ]),
     }
     return {k: v for k, v in groups.items() if v}
 

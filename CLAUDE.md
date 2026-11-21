@@ -29,5 +29,5 @@ Predicts daily Montgomery County (MD) police incident counts from lags, calendar
 
 ## Status (2026-11-20)
 
-- Branch `honest-eval`: env + validation-only ablation. Result: NN with all features 41.91 test MAE vs naive last-week 41.25; NN with **no weather** 31.76. Raw temperature columns are the main source of harm; rain flags are the only weather features whose removal reliably hurts.
+- Branch `honest-eval`: env + validation-only ablation. Result: NN with all features 41.91 test MAE vs naive last-week 41.25; NN with **no weather** 32.15. Raw temperature columns are the main source of harm; rain flags are the only weather features whose removal reliably hurts.
 - Next: (3) stronger baselines (7-day mean, ridge / gradient boosting on same features); (4) error on severe-weather days vs ordinary days, which is the project's actual question; consider rolling-origin validation (current val window is Aug-Feb only).

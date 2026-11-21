@@ -27,17 +27,17 @@ Test year: 2025-02-05 to 2026-02-04 (365 days). Mean absolute error in daily inc
 | Naive: yesterday's count | 43.06 |
 | Neural network, all features | 41.91 (sd 1.33) |
 | Naive: same day last week | 41.25 |
-| **Neural network, no weather features** | **31.76** (sd 0.85) |
+| **Neural network, no weather features** | **32.15** (sd 0.67) |
 
-The model with every feature does no better than guessing last week's count. Removing all 27 weather columns was the best configuration on validation, and it held up on the untouched test year, cutting error by about a quarter. Calendar structure, lags, and holidays carry the signal; in this setup, weather mostly adds noise.
+The model with every feature does no better than guessing last week's count. Removing all 33 weather columns was the best configuration on validation, and it held up on the untouched test year, cutting error by about a quarter. Calendar structure, lags, and holidays carry the signal; in this setup, weather mostly adds noise.
 
-The ablation shows where that noise comes from. Raw temperature is the clearest problem: removing the three temperature columns improves validation MAE by 3.6, and each one hurts on its own. The only weather features whose removal reliably makes things worse are the threshold flags, especially rain (`is_rainy`, `is_heavy_rain`): with the rest of the weather left in, they appear to offset damage done by the raw measurements. Most single-feature effects fall within seed noise.
+The ablation shows where that noise comes from. Raw temperature is the clearest problem: removing the three temperature columns improves validation MAE by 3.6, and each one hurts on its own. The only weather features whose removal reliably makes things worse are the threshold flags, especially rain (`is_rainy`, `is_heavy_rain`): with the rest of the weather left in, they appear to offset damage done by the raw measurements. The compound danger proxies (ice risk, blowing snow, storms) and the recent-weather streak counts show no reliable effect either way. Most single-feature effects fall within seed noise.
 
 On the motivating question, whether severe weather matters more than mild variation: the answer so far is that neither improves the model on average. Severe days are rare, though, so an average over the year can hide them. A direct comparison of errors on severe-weather days is the next step.
 
 Earlier versions of this project ranked features by test MAE, which let the test set leak into feature selection and overstated results. The current pipeline selects on validation only.
 
-**Limitations.** The validation window is a single half-year (August 2024 to February 2025), so selection never sees spring or summer; rolling-origin validation would be more robust. Validation also drives early stopping, which makes validation scores slightly optimistic, which is why the chosen configuration is confirmed on the test year rather than trusted on its own. Flagging 38 comparisons at two standard errors will produce a few false positives.
+**Limitations.** The validation window is a single half-year (August 2024 to February 2025), so selection never sees spring or summer; rolling-origin validation would be more robust. Validation also drives early stopping, which makes validation scores slightly optimistic, which is why the chosen configuration is confirmed on the test year rather than trusted on its own. Flagging 47 comparisons at two standard errors will produce a few false positives.
 
 ## Modeling Philosophy
 
