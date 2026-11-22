@@ -18,13 +18,13 @@ The compare_models.py script puts the neural network next to naive rules (yester
 
 The severe_weather.py script runs rolling-origin evaluation over six one-year windows (February 2020 to February 2026), training ridge and gradient boosting with and without weather on all data before each window. It then measures, for each weather category, how far incidents departed from the weather-blind prediction, with bootstrap confidence intervals. It writes data/rolling_origin_mae.csv, data/severe_weather_effects.csv, and plots/severe_weather_effect.png.
 
-The make_category_series.py script maps every dispatch type to one of nine categories (traffic crash, traffic enforcement, alarm, violent/person, property, disorder/suspicious, welfare/mental health, animal, other) and builds daily counts per category, plus a count of incidents with a crash report attached. The weather_by_type.py script reruns the rolling-origin weather analysis for each category and draws the heatmap above (data/weather_effects_by_type.csv, plots/weather_effects_by_type.png).
+The make_category_series.py script maps every dispatch type to one of nine categories (traffic crash, traffic enforcement, alarm, violent/person, property, disorder/suspicious, welfare/mental health, animal, other) and builds daily counts per category, plus a count of incidents with a crash report attached. The weather_by_type.py script reruns the rolling-origin weather analysis for each category and draws the heatmap above (data/weather_effects_by_type.csv, plots/weather_effects_by_type.png). The same script writes daily counts by police district, and weather_by_district.py runs the analysis per district with a call-mix composition check and a within-day heterogeneity test (data/weather_effects_by_district.csv, data/district_composition_check.csv, data/district_heterogeneity.csv, plots/weather_effects_by_district.png).
 
 The fetch_weather_forecast.py script downloads the day-ahead forecasts Open-Meteo actually issued (one and two days ahead, January 2024 onward). The forecast_weather.py script rescores the last two rolling-origin years with forecast instead of observed weather (data/forecast_vs_observed.csv, data/forecast_event_skill.csv, plots/forecast_vs_observed.png). Same-day weather flags are defined once in weather_features.py and shared by the observed and forecast feature builds.
 
 ## Typical Workflow
 
-Set up the environment with Python 3.12: `python3.12 -m venv .venv && .venv/bin/pip install -r requirements.txt`. Place the raw input files in the data directory, build the feature table with `.venv/bin/python scripts/build_features.py`, train a single baseline model with `.venv/bin/python scripts/train_nn.py`, run the neural-network ablation with `.venv/bin/python main.py` (about ten minutes on a laptop CPU), compare all models with `.venv/bin/python -m scripts.compare_models` (about a minute), run the severe-weather analysis with `.venv/bin/python -m scripts.severe_weather` (about a minute), and break it down by dispatch type with `.venv/bin/python scripts/make_category_series.py` followed by `.venv/bin/python -m scripts.weather_by_type`. Check the forecast case with `cd scripts && ../.venv/bin/python fetch_weather_forecast.py` and then, from the repo root, `.venv/bin/python -m scripts.forecast_weather` (about 30 seconds).
+Set up the environment with Python 3.12: `python3.12 -m venv .venv && .venv/bin/pip install -r requirements.txt`. Place the raw input files in the data directory, build the feature table with `.venv/bin/python scripts/build_features.py`, train a single baseline model with `.venv/bin/python scripts/train_nn.py`, run the neural-network ablation with `.venv/bin/python main.py` (about ten minutes on a laptop CPU), compare all models with `.venv/bin/python -m scripts.compare_models` (about a minute), run the severe-weather analysis with `.venv/bin/python -m scripts.severe_weather` (about a minute), and break it down by dispatch type with `.venv/bin/python scripts/make_category_series.py` followed by `.venv/bin/python -m scripts.weather_by_type` and `.venv/bin/python -m scripts.weather_by_district`. Check the forecast case with `cd scripts && ../.venv/bin/python fetch_weather_forecast.py` and then, from the repo root, `.venv/bin/python -m scripts.forecast_weather` (about 30 seconds).
 
 ## Results
 
@@ -66,6 +66,27 @@ The total hides opposite movements underneath. `scripts/make_category_series.py`
 - **Heat barely registers.** On 90-degree days the shifts are small: welfare and mental-health calls up 4%, property up 3%, animal calls down 6%, and the total unchanged.
 
 These are 66 comparisons at 95% confidence, so expect a few of the smaller bold cells to be chance. The large effects (snow on crime, wind on alarms, snow on crash calls) are far outside that range.
+
+### Does weather hit some districts harder?
+
+![Weather effects by police district](plots/weather_effects_by_district.png)
+
+`scripts/weather_by_district.py` repeats the rolling-origin analysis for each of the county's six police districts, each with its own history. It looks like the effects vary, with snow cutting incidents 11% in Rockville and 5% in Germantown. But the districts share the same days, so their confidence intervals can't simply be compared side by side. The bold/grey split above invites exactly that mistake. A proper test compares each district with the six-district average on the same day, relative to how that district runs on ordinary days, and bootstraps over days (`data/district_heterogeneity.csv`).
+
+| Weather | Days | Districts differ? (p) | Smallest difference the test could detect |
+|---|---|---|---|
+| Any snow | 111 | 0.60 | about 2 points |
+| Snow >= 1 in | 24 | 0.54 | about 4.5 points |
+| Day after snow >= 1 in | 24 | 0.63 | about 5 points |
+| Ice risk | 149 | 0.54 | about 2 points |
+| Heavy rain | 98 | 0.36 | about 2 points |
+| Gusts >= 40 mph | 72 | 0.09 | about 3 points |
+| Hot | 145 | 0.54 | about 2 points |
+
+- **No district responds differently by more than chance.** For the common weather types the test could detect a district departing from the county pattern by about 2 percentage points, and none does. For snow of an inch or more it could only detect a gap of about 4.5 points, so smaller real differences can't be ruled out.
+- **The closest call, wind, follows the call mix.** Gusty days raise Bethesda's incidents 6% and Germantown's not at all (p = 0.09, the lowest of ten tests). Bethesda's calls are 15% alarms against 6 to 9% elsewhere, and wind mainly raises alarm calls. Applying the countywide effect for each dispatch type to each district's mix predicts Bethesda's gust effect at +4.7%, the highest of the six (`data/district_composition_check.csv`).
+- **Call mixes are otherwise similar enough** that composition predicts nearly the same snow effect everywhere (-7% to -8.5%).
+- One caveat: weather is measured at one point, and upcounty districts often get more snow than the center of the county. If anything that should make Germantown's snow drop look *larger*, and it looks smaller (not significantly).
 
 ### Which model to use
 
@@ -156,5 +177,5 @@ The structure of the pipeline makes it possible to answer concrete questions abo
 
 ## Reproducibility and Extensions
 
-All experiments are reproducible due to fixed random seeds, deterministic transformations, and pinned dependencies in requirements.txt (verified to reproduce the original February 2026 numbers exactly on the original data). No derived data needs to be stored permanently, as all outputs can be regenerated from raw inputs. The project is designed to be extended easily, with natural next steps including seasonal interaction effects, weekday versus weekend differentiation, police district-level effects (the data has district and beat), bias-correcting forecasts to the archive before use, or higher-resolution modeling if finer-grained incident data becomes available.
+All experiments are reproducible due to fixed random seeds, deterministic transformations, and pinned dependencies in requirements.txt (verified to reproduce the original February 2026 numbers exactly on the original data). No derived data needs to be stored permanently, as all outputs can be regenerated from raw inputs. The project is designed to be extended easily, with natural next steps including seasonal interaction effects, weekday versus weekend differentiation, beat-level effects, bias-correcting forecasts to the archive before use, or higher-resolution modeling if finer-grained incident data becomes available.
 

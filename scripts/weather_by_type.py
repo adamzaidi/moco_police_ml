@@ -69,15 +69,13 @@ def category_frame(base: pd.DataFrame, counts: pd.Series) -> pd.DataFrame:
     return base[keep].merge(own.reset_index(), on="date", how="left")
 
 
-def heatmap(eff: pd.DataFrame) -> None:
-    order = (eff[eff["category"] == "Snow >= 1 in"].sort_values("residual_pct_of_expected")["dispatch_type"].tolist())
+def heatmap(eff: pd.DataFrame, label_col: str, out_plot: Path, title: str, lim: float = 40) -> None:
+    order = (eff[eff["category"] == "Snow >= 1 in"].sort_values("residual_pct_of_expected")[label_col].tolist())
     rows = [t for t in order if t != "All incidents"] + ["All incidents"]
-    pct = eff.pivot(index="dispatch_type", columns="category", values="residual_pct_of_expected").loc[rows, HEATMAP_WEATHER]
-    lo = eff.pivot(index="dispatch_type", columns="category", values="residual_ci_low").loc[rows, HEATMAP_WEATHER]
-    hi = eff.pivot(index="dispatch_type", columns="category", values="residual_ci_high").loc[rows, HEATMAP_WEATHER]
+    piv = lambda v: eff.pivot(index=label_col, columns="category", values=v).loc[rows, HEATMAP_WEATHER]
+    pct, lo, hi = piv("residual_pct_of_expected"), piv("residual_ci_low"), piv("residual_ci_high")
     sig = (lo > 0) | (hi < 0)
 
-    lim = 40
     fig, ax = plt.subplots(figsize=(9, 0.5 * len(rows) + 1.8))
     im = ax.imshow(pct.clip(-lim, lim).values, cmap="RdBu", vmin=-lim, vmax=lim, aspect="auto")
     for i in range(len(rows)):
@@ -91,30 +89,32 @@ def heatmap(eff: pd.DataFrame) -> None:
     ax.axhline(len(rows) - 1.5, color="#222", lw=1)
     ax.tick_params(length=0)
     fig.colorbar(im, ax=ax, shrink=0.7, label="% vs weather-blind expectation")
-    fig.suptitle("Weather effect by dispatch type (out-of-sample, 2020-2026)", x=0.02, ha="left")
+    fig.suptitle(title, x=0.02, ha="left")
     fig.text(0.02, 0.01, "Bold with %: 95% CI excludes zero. Grey: not distinguishable from zero.", fontsize=8, color="#555")
     fig.tight_layout(rect=(0, 0.03, 1, 1))
-    fig.savefig(OUT_PLOT, dpi=150)
+    fig.savefig(out_plot, dpi=150)
     plt.close(fig)
 
 
-def main() -> None:
+def run_effects(series: dict[str, pd.Series], label_col: str, out_csv: Path, out_plot: Path,
+                title: str, color_lim: float = 40) -> tuple[pd.DataFrame, dict[str, pd.DataFrame]]:
+    """Rolling-origin ridge weather effects for each count series (each with its own lags).
+
+    Returns the effects table and each series' out-of-sample predictions.
+    """
     base = pd.read_csv(DATA_PATH, parse_dates=["date"]).sort_values("date").reset_index(drop=True)
-    by_type = pd.read_csv(BY_TYPE_PATH, parse_dates=["date"]).set_index("date")
     weather = sorted(get_weather_cols(base))
     learners = {LEARNER: LEARNERS[LEARNER]}
 
-    series = {t: by_type[t] for t in by_type.columns}
-    series["All incidents"] = by_type.drop(columns=["Crash report filed"]).sum(axis=1)
-
-    effects = []
+    effects, oos_all = [], {}
     for name, counts in series.items():
         df = category_frame(base, counts).dropna().reset_index(drop=True)
         all_cols = [c for c in df.columns if c not in ("date", "incident_count") and pd.api.types.is_numeric_dtype(df[c])]
         feature_sets = {"all": all_cols, "no weather": [c for c in all_cols if c not in set(weather)]}
         oos, roll = rolling_predictions(df, feature_sets, learners=learners, verbose=False)
         eff = category_effects(oos, df[["date"] + weather], LEARNER)
-        eff.insert(0, "dispatch_type", name)
+        oos_all[name] = oos
+        eff.insert(0, label_col, name)
         eff.insert(1, "mean_daily_count", counts.mean())
         effects.append(eff)
         snow = eff[eff["category"] == "Snow >= 1 in"].iloc[0]
@@ -128,13 +128,22 @@ def main() -> None:
     expected = out["mean_actual"] - out["residual_no_weather"]
     out["pct_ci_low"] = 100 * out["residual_ci_low"] / expected
     out["pct_ci_high"] = 100 * out["residual_ci_high"] / expected
-    out.to_csv(OUT_CSV, index=False)
+    out.to_csv(out_csv, index=False)
 
-    heatmap(out)
-    tbl = out[out["category"].isin(HEATMAP_WEATHER)].pivot(index="dispatch_type", columns="category",
+    heatmap(out, label_col, out_plot, title, color_lim)
+    tbl = out[out["category"].isin(HEATMAP_WEATHER)].pivot(index=label_col, columns="category",
                                                            values="residual_pct_of_expected")[HEATMAP_WEATHER]
     print("\n% effect vs weather-blind expectation:")
     print(tbl.round(1).to_string())
+    return out, oos_all
+
+
+def main() -> None:
+    by_type = pd.read_csv(BY_TYPE_PATH, parse_dates=["date"]).set_index("date")
+    series = {t: by_type[t] for t in by_type.columns}
+    series["All incidents"] = by_type.drop(columns=["Crash report filed"]).sum(axis=1)
+    run_effects(series, "dispatch_type", OUT_CSV, OUT_PLOT,
+                "Weather effect by dispatch type (out-of-sample, 2020-2026)")
 
 
 if __name__ == "__main__":
