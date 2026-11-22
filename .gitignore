@@ -19,6 +19,10 @@ data/*
 !data/weather_effects_by_type.csv
 !data/forecast_vs_observed.csv
 !data/forecast_event_skill.csv
+!data/weather_effects_by_district.csv
+!data/district_composition_check.csv
+!data/district_heterogeneity.csv
+!data/district_category_mix.csv
 
 # Ignore model outputs / plots
 plots/*
@@ -26,6 +30,7 @@ plots/*
 !plots/severe_weather_effect.png
 !plots/weather_effects_by_type.png
 !plots/forecast_vs_observed.png
+!plots/weather_effects_by_district.png
 models/*
 checkpoints/*
 

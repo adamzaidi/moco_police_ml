@@ -16,8 +16,9 @@ Predicts daily Montgomery County (MD) police incident counts from lags, calendar
 5. `main.py`: two-stage ablation (about 8 min for stage 1 on CPU)
 6. `scripts/compare_models.py`: NN vs naive rules vs ridge vs gradient boosting, with/without weather; also a ridge weather-group ablation (about 1 min)
 7. `scripts/severe_weather.py`: rolling-origin (6 yearly windows, Feb 2020-Feb 2026) out-of-sample predictions for ridge/GBM with and without weather; per-category weather effects with bootstrap CIs (about 1 min)
-8. `scripts/make_category_series.py`: maps 233 `Initial Type` values to 9 categories (ordered substring rules; first match wins) + `Crash report filed` series; reads the 560 MB raw CSV (about 1 min)
-9. `scripts/weather_by_type.py`: per-category rolling-origin ridge weather effects + heatmap (about 10 s)
+8. `scripts/make_category_series.py`: maps 233 `Initial Type` values to 9 categories (ordered substring rules; first match wins) + `Crash report filed` series; also daily counts by police district (1D-6D + Other) and district x category mix; reads the 560 MB raw CSV (about 1 min)
+9. `scripts/weather_by_type.py`: per-category rolling-origin ridge weather effects + heatmap (about 10 s). `run_effects()` is reusable for any set of count series
+9b. `scripts/weather_by_district.py`: same per district + call-mix composition check + within-day heterogeneity test (needs weather_by_type output first)
 10. `scripts/fetch_weather_forecast.py`: day-ahead forecasts as issued (Open-Meteo Previous Runs API, leads 1-2 days, 2024-01-20 on) to `data/weather_forecast_daily.csv`. Run from `scripts/` (plain imports)
 11. `scripts/forecast_weather.py`: rescoring of the last 2 rolling windows with forecast vs observed weather; event skill table (about 30 s)
 12. `scripts/baseline_models.py`: original naive baselines script (superseded by compare_models)
@@ -50,4 +51,6 @@ Predicts daily Montgomery County (MD) police incident counts from lags, calendar
 - Findings: ridge with all features is the pick (rolling-origin mean MAE 28.3 vs 28.6 no-weather, GBM 31.0, 7-day mean 32.8). Snow has a clear dose-response effect (any snow -4%, >=1 in -7%, >=3 in -12%, day after >=1 in -8%); ice and heavy rain about -2%; gusts >= 40 mph about +3%; heat none. Severe days are ~14% of days, which is why yearly MAE barely moves with weather.
 - PR #4 `dispatch-types` (stacked on #3): snow cuts crime/disorder 13-16% and raises crash calls 23% (but filed crash reports fall); gusts raise alarms 27% (explains the wind effect) and TRAFFIC VIOLATION calls 24% (unexplained).
 - PRs #1-#4 merged 2026-11-21. Branch `forecast-weather`: forecast vs observed check. Over Feb 2024-Feb 2026 the weather gain is small even with observed weather (ridge +0.2 n.s., GBM +1.3); GBM keeps 72% (all days) / 85% (severe) with a 2-day forecast; on snow >= 1 in days (n=7) forecasts give +20-31 MAE for both learners; forecasts caught 5/7 snow events.
-- Next ideas: district/beat-level effects, bias-correcting forecasts to the archive, holiday x weather interactions.
+- PR #5 merged 2026-11-22. Branch `district-effects`: no district differs from the county pattern beyond chance (all p >= 0.09; detectable gap about 2 pts for common weather, 4.5 for snow >= 1 in). Bethesda's larger gust effect matches its alarm-heavy call mix (15% vs 6-9%).
+- Comparing districts: use the within-day test, not side-by-side CIs (districts share days). Each district's ordinary-day deviation is its baseline (small model drift, p = 0.02 on its own).
+- Next ideas (optional): beat-level effects, bias-correcting forecasts to the archive, holiday x weather interactions.
