@@ -20,9 +20,11 @@ The severe_weather.py script runs rolling-origin evaluation over six one-year wi
 
 The make_category_series.py script maps every dispatch type to one of nine categories (traffic crash, traffic enforcement, alarm, violent/person, property, disorder/suspicious, welfare/mental health, animal, other) and builds daily counts per category, plus a count of incidents with a crash report attached. The weather_by_type.py script reruns the rolling-origin weather analysis for each category and draws the heatmap above (data/weather_effects_by_type.csv, plots/weather_effects_by_type.png).
 
+The fetch_weather_forecast.py script downloads the day-ahead forecasts Open-Meteo actually issued (one and two days ahead, January 2024 onward). The forecast_weather.py script rescores the last two rolling-origin years with forecast instead of observed weather (data/forecast_vs_observed.csv, data/forecast_event_skill.csv, plots/forecast_vs_observed.png). Same-day weather flags are defined once in weather_features.py and shared by the observed and forecast feature builds.
+
 ## Typical Workflow
 
-Set up the environment with Python 3.12: `python3.12 -m venv .venv && .venv/bin/pip install -r requirements.txt`. Place the raw input files in the data directory, build the feature table with `.venv/bin/python scripts/build_features.py`, train a single baseline model with `.venv/bin/python scripts/train_nn.py`, run the neural-network ablation with `.venv/bin/python main.py` (about ten minutes on a laptop CPU), compare all models with `.venv/bin/python -m scripts.compare_models` (about a minute), run the severe-weather analysis with `.venv/bin/python -m scripts.severe_weather` (about a minute), and break it down by dispatch type with `.venv/bin/python scripts/make_category_series.py` followed by `.venv/bin/python -m scripts.weather_by_type`.
+Set up the environment with Python 3.12: `python3.12 -m venv .venv && .venv/bin/pip install -r requirements.txt`. Place the raw input files in the data directory, build the feature table with `.venv/bin/python scripts/build_features.py`, train a single baseline model with `.venv/bin/python scripts/train_nn.py`, run the neural-network ablation with `.venv/bin/python main.py` (about ten minutes on a laptop CPU), compare all models with `.venv/bin/python -m scripts.compare_models` (about a minute), run the severe-weather analysis with `.venv/bin/python -m scripts.severe_weather` (about a minute), and break it down by dispatch type with `.venv/bin/python scripts/make_category_series.py` followed by `.venv/bin/python -m scripts.weather_by_type`. Check the forecast case with `cd scripts && ../.venv/bin/python fetch_weather_forecast.py` and then, from the repo root, `.venv/bin/python -m scripts.forecast_weather` (about 30 seconds).
 
 ## Results
 
@@ -100,6 +102,30 @@ One test year is a thin basis for choosing between close models; on this one, ri
 
 **Weather helps as a block, not variable by variable.** Repeating the weather ablation with ridge (`data/ridge_weather_ablation.csv`), removing all weather costs 2.0 MAE on validation, but removing any single group (temperature, precipitation, snow, wind, flags, compound proxies, streaks) costs at most 0.2. The groups overlap, so each can stand in for the others.
 
+### Does it still work with a real forecast?
+
+![Forecast vs observed weather](plots/forecast_vs_observed.png)
+
+Every result above feeds the model the weather that was *observed* on the day it predicts, which no one has in advance. Open-Meteo archives the forecasts it actually issued, with precipitation, snow, and gusts from January 2024 onward. `scripts/fetch_weather_forecast.py` pulls the forecasts issued one and two days ahead. `scripts/forecast_weather.py` rescores the last two rolling-origin years (February 2024 to February 2026, 730 days) with the same fitted models, swapping only the same-day weather inputs. Past weather (streaks, 30-day normals) stays observed, since a forecaster knows yesterday's weather. "Severe days" are always defined by what was observed.
+
+MAE improvement from adding weather, compared with the same model without weather (95% CI):
+
+| Days | Model | Forecast, 2 days ahead | Forecast, 1 day ahead | Observed |
+|---|---|---|---|---|
+| All days (730) | Ridge | -0.3 (-1.4 to +0.9) | -0.7 (-1.8 to +0.4) | +0.2 (-0.9 to +1.4) |
+| | Gradient boosting | +1.0 (-0.1 to +2.0) | +0.5 (-0.5 to +1.6) | **+1.3 (+0.3 to +2.4)** |
+| Any severe (103) | Ridge | +1.1 (-4.6 to +6.5) | +2.6 (-1.6 to +6.9) | +0.5 (-4.7 to +5.8) |
+| | Gradient boosting | +4.0 (0.0 to +8.4) | +3.0 (-0.9 to +7.0) | **+4.7 (+0.4 to +8.9)** |
+| Snow >= 1 in (7) | Ridge | +31.0 (-1.0 to +63.4) | **+28.5 (+5.9 to +51.7)** | +8.6 (-25.7 to +39.9) |
+| | Gradient boosting | **+23.9 (+9.0 to +37.0)** | **+20.6 (+9.2 to +31.8)** | +12.2 (-6.3 to +30.1) |
+
+- **In these two years the weather gain is small even with perfect knowledge.** Ridge gains 0.2 MAE from observed weather (not significant), and gradient boosting gains 1.3. The six-window average above (0.3 for ridge) was larger mainly because of earlier years.
+- **Gradient boosting keeps most of its gain with a forecast**: with the two-day forecast, 72% of it on all days and 85% on severe days. Ridge had almost nothing to keep, and with forecasts its overall change sits within noise of zero.
+- **Snow is where forecasts pay off.** On the seven days with an inch or more of snow, both learners beat their no-weather versions by 20 to 31 incidents with either forecast. The forecasts caught 5 of the 7 events at both leads, and the big storms (Jan 2025, Jan 2026) were forecast at 3.5 to 5.3 inches. Seven days can't separate forecast from observed weather. The forecast versions scoring higher here comes down to two or three days and isn't a finding.
+- **How good were the forecasts?** (`data/forecast_event_skill.csv`) Hot days were caught 96% of the time a day ahead. Gusts of 40 mph or more were caught 73% of the time a day ahead, but almost half of those forecasts were false alarms. Heavy rain is the weak spot: half of the heavy-rain days were missed, and two-thirds of heavy-rain forecasts didn't happen. Temperatures were off by about 2 degrees F on average, and gusts by 4 to 5 mph.
+
+**A pitfall worth knowing about.** The first run made ridge *significantly worse* with a two-day forecast than with no weather at all (+3.3 MAE). The cause: ridge (with almost no regularization, alpha 0.1) puts weights of about +400 on rain and -355 on precipitation (per log-inch). Those two columns are identical in the archive except on snow days, so the model was reading their small difference as snow. The two-day forecast reports convective rain separately as `showers`, so from December 2024 its rain ran below its precipitation on a quarter of snow-free days, and ridge turned that into large errors. Defining forecast rain as rain plus showers, matching the archive, removed the problem; the table uses that fix. The one-day forecast has a similar but smaller mismatch that isn't a definition problem: it forecasts about a third as many wet hours as the archive records, which is likely why it does no better than the two-day forecast. Gradient boosting, which splits on thresholds rather than extrapolating linear weights, was barely affected either way. The general lesson: a linear model with near-collinear inputs depends on those inputs keeping their exact relationship, and switching data sources can break it.
+
 ### Why the neural network struggles with weather
 
 The neural-network ablation (`main.py`, `data/ablation_results.csv`) tells a different story from ridge, and the difference comes from the model rather than the data. For the network, removing all weather improves validation MAE by 4.4, and raw temperature is the main culprit (removing the three temperature columns improves it by 2.5). Ridge is indifferent to those same columns. The network appears to lean on temperature as a stand-in for season, then misfires when a year's temperatures don't follow the training pattern. The only weather features whose removal reliably hurts the network are the threshold flags, especially rain.
@@ -114,7 +140,7 @@ Earlier versions of this project had four problems, all now fixed:
 - Wind flags used sustained wind, which in this data never exceeds 30 mph, so "gale" never fired. They now use gusts, with the top tier at the National Weather Service wind-advisory threshold of 46 mph.
 
 **Limitations.**
-- Weather is observed weather at a single point near the county's center (39.15, -77.24). A real forecast would only know it approximately, and conditions vary across the county.
+- Weather comes from a single point near the county's center (39.15, -77.24), and conditions vary across the county. Most results use observed weather; the forecast check covers only the two years for which archived forecasts exist.
 - Effects are associations conditional on the calendar and recent history, not causal estimates. Snow days also bring school closures and remote work.
 - The 3-inch snow category has only 8 days, hence its wide interval.
 - Dispatch categories reflect how a call was first classified, not what was found; the category rules are judgment calls, listed in full in `data/dispatch_type_map.csv`.
@@ -130,5 +156,5 @@ The structure of the pipeline makes it possible to answer concrete questions abo
 
 ## Reproducibility and Extensions
 
-All experiments are reproducible due to fixed random seeds, deterministic transformations, and pinned dependencies in requirements.txt (verified to reproduce the original February 2026 numbers exactly on the original data). No derived data needs to be stored permanently, as all outputs can be regenerated from raw inputs. The project is designed to be extended easily, with natural next steps including seasonal interaction effects, weekday versus weekend differentiation, police district-level effects (the data has district and beat), forecast rather than observed weather, or higher-resolution modeling if finer-grained incident data becomes available.
+All experiments are reproducible due to fixed random seeds, deterministic transformations, and pinned dependencies in requirements.txt (verified to reproduce the original February 2026 numbers exactly on the original data). No derived data needs to be stored permanently, as all outputs can be regenerated from raw inputs. The project is designed to be extended easily, with natural next steps including seasonal interaction effects, weekday versus weekend differentiation, police district-level effects (the data has district and beat), bias-correcting forecasts to the archive before use, or higher-resolution modeling if finer-grained incident data becomes available.
 

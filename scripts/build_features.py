@@ -4,6 +4,10 @@ from pathlib import Path
 
 from pandas.tseries.holiday import USFederalHolidayCalendar
 
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from weather_features import RAW_WEATHER, add_same_day_features  # noqa: E402
+
 # -----------------------
 # 0) Paths
 # -----------------------
@@ -122,11 +126,7 @@ df = pd.get_dummies(df, columns=["holiday_cat"], prefix="holiday_cat", drop_firs
 # -----------------------
 # 4) Merge weather (left join keeps your incident timeline)
 # -----------------------
-weather_cols = [
-    "tmax_f", "tmin_f", "tmean_f",
-    "precip_in", "rain_in", "snow_in",
-    "precip_hours", "wind_max_mph", "gust_max_mph",
-]
+weather_cols = RAW_WEATHER
 has_weather = False
 
 if WEATHER_PATH.exists():
@@ -151,49 +151,10 @@ if has_weather:
     for c in weather_cols:
         df[c] = pd.to_numeric(df[c], errors="coerce")
 
-    # --- Basic flags (kept for continuity) ---
-    df["is_rainy"] = (df["precip_in"] >= 0.10).astype(int)
-    df["is_heavy_rain"] = (df["precip_in"] >= 0.75).astype(int)
-    df["is_snow_day"] = (df["snow_in"] > 0.0).astype(int)
-    # Wind flags use gusts: Open-Meteo daily sustained wind is smoothed and never
-    # exceeds ~30 mph here, so sustained-wind thresholds almost never fire.
-    df["is_windy"] = (df["gust_max_mph"] >= 40).astype(int)
-    df["is_hot_day"] = (df["tmax_f"] >= 90).astype(int)
-    df["is_freeze_night"] = (df["tmin_f"] <= 32).astype(int)
-
-    # --- Severity tiers (more separation / "danger levels") ---
-    # Snow inches: light/mod/heavy
-    df["snow_light"] = ((df["snow_in"] > 0) & (df["snow_in"] < 1)).astype(int)
-    df["snow_mod"]   = ((df["snow_in"] >= 1) & (df["snow_in"] < 3)).astype(int)
-    df["snow_heavy"] = (df["snow_in"] >= 3).astype(int)
-
-    # Rain inches: light/mod/heavy (use rain_in, not precip_in)
-    df["rain_light"] = ((df["rain_in"] > 0) & (df["rain_in"] < 0.25)).astype(int)
-    df["rain_mod"]   = ((df["rain_in"] >= 0.25) & (df["rain_in"] < 1.0)).astype(int)
-    df["rain_heavy"] = (df["rain_in"] >= 1.0).astype(int)
-
-    # Wind tiers
-    # Wind tiers (gusts); top tier = NWS wind advisory gust threshold (46 mph)
-    df["wind_breezy"] = ((df["gust_max_mph"] >= 30) & (df["gust_max_mph"] < 40)).astype(int)
-    df["wind_windy"]  = ((df["gust_max_mph"] >= 40) & (df["gust_max_mph"] < 46)).astype(int)
-    df["wind_gale"]   = (df["gust_max_mph"] >= 46).astype(int)
-
-    # --- Compound danger proxies ---
-    # Ice risk: freezing overnight + any precip
-    df["is_ice_risk"] = ((df["tmin_f"] <= 32) & (df["precip_in"] > 0)).astype(int)
-
-    # Blowing snow proxy: meaningful snow + windy
-    df["is_blowing_snow"] = ((df["snow_in"] >= 1) & (df["gust_max_mph"] >= 35)).astype(int)
-
-    # Heavy rain + windy: storm proxy
-    df["is_stormy"] = ((df["rain_in"] >= 1.0) & (df["gust_max_mph"] >= 35)).astype(int)
-
-    # --- Rolling 30-day normals (past-only) + anomalies ---
+    # --- Rolling 30-day normals (past-only), then same-day flags/tiers/anomalies ---
     df["tmean_roll30"] = df["tmean_f"].shift(1).rolling(30, min_periods=30).mean()
     df["precip_roll30"] = df["precip_in"].shift(1).rolling(30, min_periods=30).mean()
-
-    df["temp_anom_30"] = df["tmean_f"] - df["tmean_roll30"]
-    df["precip_anom_30"] = df["precip_in"] - df["precip_roll30"]
+    df = add_same_day_features(df)
 
     # --- Short streak / recent-bad-weather counts (PAST ONLY) ---
     # “In the last 3 days (excluding today), how many days were X?”
