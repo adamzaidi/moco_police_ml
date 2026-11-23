@@ -1,0 +1,6 @@
+test,group,n,effect_pct,ci_low,ci_high,ci_halfwidth
+"Whole day, vs model expectation (2020-2026)",All incidents,225 full-moon days,0.4785275161318139,-0.4433506921108834,1.420651263845089,0.9320009779779862
+"Night vs same-day daytime, full vs new moon (2017-2026)",All incidents,"110 cycles, 49,776 full-moon night calls",0.788908772970897,-2.142968775197816,3.8404538505779504,2.991711312887883
+"Night vs same-day daytime, full vs new moon (2017-2026)",Violent / person,"110 cycles, 9,052 full-moon night calls",-0.029704628549934838,-4.91873268652696,5.072266645064685,4.995499665795823
+"Night vs same-day daytime, full vs new moon (2017-2026)",Disorder / suspicious,"110 cycles, 17,623 full-moon night calls",3.354885659475406,-1.2259142369852731,8.257493640338913,4.741703938662093
+"Night vs same-day daytime, full vs new moon (2017-2026)",Welfare / mental health,"110 cycles, 4,756 full-moon night calls",-4.43836270689864,-9.202998068501753,1.014258034833682,5.108628051667718

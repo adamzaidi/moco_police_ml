@@ -8,9 +8,16 @@ and dispatch / arrival / cleared times. Until now only daily counts were used.
 
 Status key: **[ ]** not started, **[~]** in progress, **[x]** done.
 
-## Now
+## Done (PR #8)
 
-### 1. Darkness and daylight saving time [~]
+Results are in the README section "Beyond weather". Short version: darkness at
+rush hour raises crash calls about 19%; the crime effect can't be pinned down
+(robbery is too rare here, and the answer depends on the comparison hours);
+snow slows urgent responses about 14% and busy days slow only routine ones; no
+full-moon effect (rules out more than about 1.4%).
+
+
+### 1. Darkness and daylight saving time [x]
 - **Question:** does losing evening daylight raise robbery and other street crime
   in the hour after sunset? Does the spring clock change raise crash calls?
 - **Prior:** Doleac & Sanders find robbery falls 7% over the day after the spring
@@ -21,14 +28,14 @@ Status key: **[ ]** not started, **[~]** in progress, **[x]** done.
   stays fixed while daylight jumps an hour. Sunset times are computed (no new data).
 - **Data needed:** none new.
 
-### 2. Response times [~]
+### 2. Response times [x]
 - **Question:** do snow, heavy rain, or a busy day slow police response,
   especially to top-priority calls?
 - **Design:** dispatch-to-arrival time by priority, day-level medians against the
   weather categories and same-day call volume.
 - **Data needed:** none new (the `Dispatch Arrive` and `CallRoute Dispatch` fields).
 
-### 3. Full moon [~]
+### 3. Full moon [x]
 - **Question:** the myth. Studies consistently find no effect; officers widely
   believe there is one.
 - **Design:** moon phase from an astronomical formula. Residuals of the existing
@@ -37,6 +44,8 @@ Status key: **[ ]** not started, **[~]** in progress, **[x]** done.
 - **Data needed:** none new.
 
 ## Next
+
+School days is the next item.
 
 ### 4. School days [ ]
 - **Prior:** Jacob & Lefgren find that on school days juvenile property crime is
