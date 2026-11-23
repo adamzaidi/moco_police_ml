@@ -36,6 +36,8 @@ plots/*
 !plots/forecast_vs_observed.png
 !plots/weather_effects_by_district.png
 !plots/darkness_dst.png
+!plots/darkness_dst_effects.png
+!plots/full_moon.png
 !plots/response_times.png
 models/*
 checkpoints/*

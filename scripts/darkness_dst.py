@@ -22,7 +22,7 @@ show none either.
 CIs: bootstrap over days within each change's before / after period.
 
 Inputs:  data/incidents_slim.pkl (make_incident_extract.py)
-Outputs: data/darkness_dst_effects.csv, plots/darkness_dst.png
+Outputs: data/darkness_dst_effects.csv, plots/darkness_dst.png, plots/darkness_dst_effects.png
 Run from the repo root:  .venv/bin/python -m scripts.darkness_dst
 """
 from __future__ import annotations
@@ -42,6 +42,7 @@ from scripts.astro import TZ, sunset_local  # noqa: E402
 SLIM_PATH = BASE_DIR / "data" / "incidents_slim.pkl"
 OUT_CSV = BASE_DIR / "data" / "darkness_dst_effects.csv"
 OUT_PLOT = BASE_DIR / "plots" / "darkness_dst.png"
+OUT_EFFECTS_PLOT = BASE_DIR / "plots" / "darkness_dst_effects.png"
 WINDOW = 21
 N_BOOT = 2000
 DUSK_MIN = 30          # dark = more than 30 min after sunset (about the end of civil twilight)
@@ -193,6 +194,7 @@ def main() -> None:
     print("Switch hours:", hours)
     print(out.to_string(index=False, float_format="%.1f"))
     plot(profiles)
+    plot_effects(out)
 
 
 def plot(profiles: dict) -> None:
@@ -218,6 +220,44 @@ def plot(profiles: dict) -> None:
                  x=0.02, ha="left")
     fig.tight_layout()
     fig.savefig(OUT_PLOT, dpi=150)
+    plt.close(fig)
+
+
+
+def plot_effects(out: pd.DataFrame) -> None:
+    """Pooled darkness effect per group: both control choices, plus the fake-date check."""
+    groups = ["Traffic crash", "All incidents", "Street crime (property, violent, disorder)", "Robbery"]
+    labels = ["Traffic crashes", "All incidents", "Street crime", "Robbery"]
+    series = [("DST change", "switch hours vs midday", "vs midday", "#104281", "o"),
+              ("DST change", "switch hours vs late evening", "vs late evening", "#86b6ef", "o"),
+              ("Placebo: 5 weeks earlier", "switch hours vs midday", "fake dates 5 weeks earlier", "#9aa0a6", "D")]
+    lim = (-40, 80)
+    fig, ax = plt.subplots(figsize=(8.5, 4.9))
+    y = np.arange(len(groups))[::-1]
+    for k, (design, test, label, color, marker) in enumerate(series):
+        d = out[(out["design"] == design) & (out["test"] == test) & (out["season"] == "pooled")].set_index("group")
+        d = d.loc[groups]
+        yy = y + 0.22 - 0.22 * k
+        lo, hi = d["ci_low"].clip(*lim), d["ci_high"].clip(*lim)
+        ax.hlines(yy, lo, hi, color=color, lw=2)
+        ax.plot(d["darkness_effect_pct"], yy, marker, color=color, ms=7, label=label,
+                mfc=color if k < 2 else "white", mew=1.5)
+        for yi, h in zip(yy, d["ci_high"]):
+            if h > lim[1]:
+                ax.annotate("", (lim[1], yi), (lim[1] - 6, yi), arrowprops=dict(arrowstyle="->", color=color, lw=1.5))
+    ax.axvline(0, color="#333", lw=0.8)
+    ax.set_xlim(lim)
+    ax.set_yticks(y, labels, fontsize=10)
+    ax.set_xlabel("% change in calls when the switch hours turn dark (95% CI; both clock changes pooled)")
+    ax.spines[["top", "right", "left"]].set_visible(False)
+    ax.tick_params(axis="y", length=0)
+    ax.legend(frameon=False, fontsize=9, loc="lower left", bbox_to_anchor=(0, 1.0), ncol=3,
+              title="Switch hours compared with:", title_fontsize=9, alignment="left")
+    fig.suptitle("Darkness raises crash calls; the crime estimate flips with the comparison", x=0.02, ha="left")
+    fig.text(0.02, 0.01, "Robbery: only 146 calls in the switch hours, so its intervals are very wide (one runs off the chart).",
+             fontsize=8, color="#555")
+    fig.tight_layout(rect=(0, 0.03, 1, 1))
+    fig.savefig(OUT_EFFECTS_PLOT, dpi=150)
     plt.close(fig)
 
 
