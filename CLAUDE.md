@@ -21,7 +21,11 @@ Predicts daily Montgomery County (MD) police incident counts from lags, calendar
 9b. `scripts/weather_by_district.py`: same per district + call-mix composition check + within-day heterogeneity test (needs weather_by_type output first)
 10. `scripts/fetch_weather_forecast.py`: day-ahead forecasts as issued (Open-Meteo Previous Runs API, leads 1-2 days, 2024-01-20 on) to `data/weather_forecast_daily.csv`. Run from `scripts/` (plain imports)
 11. `scripts/forecast_weather.py`: rescoring of the last 2 rolling windows with forecast vs observed weather; event skill table (about 30 s)
-12. `scripts/baseline_models.py`: original naive baselines script (superseded by compare_models)
+12. `scripts/make_incident_extract.py`: call-level table (local clock time, category, robbery flag, priority, response seconds) to `data/incidents_slim.pkl` (about 1 min). Feeds 13-15
+13. `scripts/darkness_dst.py`: DST natural experiment, switch hours vs midday / late-evening controls, placebo 5 weeks earlier (seconds)
+14. `scripts/response_times.py`: daily median call-to-arrival by priority, regressed on weather + log volume + year-month and weekday FE, week-block bootstrap (about 1.5 min)
+15. `scripts/full_moon.py`: whole-day residual test + night/day full-vs-new-moon test (seconds). `scripts/astro.py` computes sunset and moon phase (validated in its `__main__`)
+16. `scripts/baseline_models.py`: original naive baselines script (superseded by compare_models)
 
 ## Evaluation rules (do not break)
 
@@ -53,4 +57,7 @@ Predicts daily Montgomery County (MD) police incident counts from lags, calendar
 - PRs #1-#4 merged 2026-11-21. Branch `forecast-weather`: forecast vs observed check. Over Feb 2024-Feb 2026 the weather gain is small even with observed weather (ridge +0.2 n.s., GBM +1.3); GBM keeps 72% (all days) / 85% (severe) with a 2-day forecast; on snow >= 1 in days (n=7) forecasts give +20-31 MAE for both learners; forecasts caught 5/7 snow events.
 - PR #5 merged 2026-11-22. Branch `district-effects`: no district differs from the county pattern beyond chance (all p >= 0.09; detectable gap about 2 pts for common weather, 4.5 for snow >= 1 in). Bethesda's larger gust effect matches its alarm-heavy call mix (15% vs 6-9%).
 - Comparing districts: use the within-day test, not side-by-side CIs (districts share days). Each district's ordinary-day deviation is its baseline (small model drift, p = 0.02 on its own).
-- Next ideas (optional): beat-level effects, bias-correcting forecasts to the archive, holiday x weather interactions.
+- PR #7 added `docs/ROADMAP.md` (ranked questions beyond weather, with sources). Keep its status markers current.
+- Branch `beyond-weather` (PR #8): darkness at rush hour raises crash calls ~19% (robust to placebo); street-crime darkness effect flips sign with the control hours (late-evening calls shift at every clock change, likely activity following the sun), so not a finding; robbery too rare (146 calls). Snow >= 1 in slows priority-0 response 14%; volume slows only priority 1. Full moon: null (whole day +0.5%, CI to 1.4%).
+- Times in the raw data are local wall-clock (spring-forward days have no 2am hour). Priority 0 = most urgent.
+- Next: school days (needs MCPS calendars by hand), then policy breaks (July 2023 cannabis-odor law). See docs/ROADMAP.md.

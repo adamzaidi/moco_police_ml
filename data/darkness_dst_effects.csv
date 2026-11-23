@@ -1,0 +1,73 @@
+design,test,season,group,n_calls_in_hours,darkness_effect_pct,ci_low,ci_high
+DST change,switch hours vs midday,spring,All incidents,17348,-0.9094180561230782,-4.317894744411473,2.8421016503494307
+DST change,switch hours vs midday,fall,All incidents,23735,1.3982365987198155,-1.7527987763753698,4.73362246203619
+DST change,switch hours vs midday,pooled,All incidents,41083,0.23776869349230392,-2.0996151891665153,2.7549755859436127
+DST change,switch hours vs midday,spring,"Street crime (property, violent, disorder)",9061,-6.070478436701706,-10.584929273041945,-1.370708383458072
+DST change,switch hours vs midday,fall,"Street crime (property, violent, disorder)",11789,-1.7662924500988573,-6.106990307349155,2.646738914090342
+DST change,switch hours vs midday,pooled,"Street crime (property, violent, disorder)",20850,-3.942490394809955,-7.120601249716967,-0.6805401532235492
+DST change,switch hours vs midday,spring,Robbery,63,26.388888888888896,-28.80478237692165,130.21218380408158
+DST change,switch hours vs midday,fall,Robbery,83,-3.478260869565218,-41.382342513421726,52.35113469959873
+DST change,switch hours vs midday,pooled,Robbery,146,10.450329842508125,-24.30171067267586,60.71538288815324
+DST change,switch hours vs midday,spring,Traffic crash,1640,11.442316113453503,-1.3689711569138623,25.642472420508284
+DST change,switch hours vs midday,fall,Traffic crash,3150,26.516751423406376,14.696592475709908,40.6486897289628
+DST change,switch hours vs midday,pooled,Traffic crash,4790,18.740556701467725,9.856506925521815,28.440211171938213
+DST change,switch hours vs late evening,spring,All incidents,17348,8.16673691932315,2.0799498032342245,14.618304207738902
+DST change,switch hours vs late evening,fall,All incidents,23735,8.631010388185306,2.0393016581878562,15.111153543232342
+DST change,switch hours vs late evening,pooled,All incidents,41083,8.39862509247569,3.8579301143174427,12.952228769046595
+DST change,switch hours vs late evening,spring,"Street crime (property, violent, disorder)",9061,4.911791231153452,-2.045104243306081,12.520158063060288
+DST change,switch hours vs late evening,fall,"Street crime (property, violent, disorder)",11789,6.975210880129231,-0.8255651707108763,14.97617706236759
+DST change,switch hours vs late evening,pooled,"Street crime (property, violent, disorder)",20850,5.938477385531331,0.33923583199457985,11.294153579762215
+DST change,switch hours vs late evening,spring,Robbery,63,41.66666666666666,-31.487025647057205,205.0162982395782
+DST change,switch hours vs late evening,fall,Robbery,83,21.472937000887306,-30.194842427596342,111.52730842717149
+DST change,switch hours vs late evening,pooled,Robbery,146,31.181805427146415,-18.147584057952635,107.28486082681592
+DST change,switch hours vs late evening,spring,Traffic crash,1640,15.540324199946824,-1.3147852996055809,35.25154458369474
+DST change,switch hours vs late evening,fall,Traffic crash,3150,38.868988014741554,19.795146309355975,60.86119856255085
+DST change,switch hours vs late evening,pooled,Traffic crash,4790,26.668732908092867,13.18443076798025,40.863221643054345
+DST change,check: late evening vs midday,spring,All incidents,18743,-8.390892832623495,-13.59813461476068,-2.738612577783304
+DST change,check: late evening vs midday,fall,All incidents,24284,-6.658111494700875,-11.625939610978216,-1.4409613469377816
+DST change,check: late evening vs midday,pooled,All incidents,43027,-7.528560802336072,-11.286682760586665,-3.58104683132175
+DST change,check: late evening vs midday,spring,"Street crime (property, violent, disorder)",11737,-10.468098522555772,-16.636807318622022,-3.334984088892308
+DST change,check: late evening vs midday,fall,"Street crime (property, violent, disorder)",15190,-8.171522410012692,-14.50032599087977,-1.5967904940588096
+DST change,check: late evening vs midday,pooled,"Street crime (property, violent, disorder)",26927,-9.327081174087933,-13.782611210798537,-4.721221573473086
+DST change,check: late evening vs midday,spring,Robbery,73,-10.784313725490192,-51.02570799347666,64.85869410027696
+DST change,check: late evening vs midday,fall,Robbery,123,-20.540540540540547,-53.299943476622545,27.50130645952759
+DST change,check: late evening vs midday,pooled,Robbery,196,-15.80362117835907,-43.08179624638499,23.742849209207012
+DST change,check: late evening vs midday,spring,Traffic crash,968,-3.546820657523463,-16.486337752268714,10.684477049890244
+DST change,check: late evening vs midday,fall,Traffic crash,1314,-8.894884860847373,-20.639585295437946,4.01267508857295
+DST change,check: late evening vs midday,pooled,Traffic crash,2282,-6.258984379655548,-14.99110319382752,3.696140096502318
+Placebo: 5 weeks earlier,switch hours vs midday,spring,All incidents,16891,-2.373825127205446,-5.949273582053966,1.4707408918005835
+Placebo: 5 weeks earlier,switch hours vs midday,fall,All incidents,25850,-3.6023239364614894,-6.360992239392055,-0.783540158888242
+Placebo: 5 weeks earlier,switch hours vs midday,pooled,All incidents,42741,-2.9900191696235185,-5.260680922360423,-0.6127820296788675
+Placebo: 5 weeks earlier,switch hours vs midday,spring,"Street crime (property, violent, disorder)",8713,-0.7009704540839901,-5.383556635023222,4.525632965530031
+Placebo: 5 weeks earlier,switch hours vs midday,fall,"Street crime (property, violent, disorder)",13062,-2.1038083327136134,-6.044074627954397,1.976871582657537
+Placebo: 5 weeks earlier,switch hours vs midday,pooled,"Street crime (property, violent, disorder)",21775,-1.4048843562596778,-4.612905888315722,1.8372906676483625
+Placebo: 5 weeks earlier,switch hours vs midday,spring,Robbery,87,-35.214504596527064,-62.428679727736395,6.259793846283514
+Placebo: 5 weeks earlier,switch hours vs midday,fall,Robbery,83,74.6343085106383,2.611554261024804,199.46170360280226
+Placebo: 5 weeks earlier,switch hours vs midday,pooled,Robbery,170,6.3662079389156,-28.705065280716706,54.23573966395634
+Placebo: 5 weeks earlier,switch hours vs midday,spring,Traffic crash,1809,-7.1022407482577865,-20.053131794242564,7.181297583671483
+Placebo: 5 weeks earlier,switch hours vs midday,fall,Traffic crash,2851,-2.1112528358905176,-10.711258104075274,7.2754278547998235
+Placebo: 5 weeks earlier,switch hours vs midday,pooled,Traffic crash,4660,-4.6393935238134825,-12.543601748633385,3.9669646280147868
+Placebo: 5 weeks earlier,switch hours vs late evening,spring,All incidents,16891,-2.4400298369991082,-7.500356348722533,2.8498456615382604
+Placebo: 5 weeks earlier,switch hours vs late evening,fall,All incidents,25850,0.15346458017121148,-5.696623438653944,6.755365675645105
+Placebo: 5 weeks earlier,switch hours vs late evening,pooled,All incidents,42741,-1.1517879971384104,-5.193491515291904,2.800082705964153
+Placebo: 5 weeks earlier,switch hours vs late evening,spring,"Street crime (property, violent, disorder)",8713,0.7293642884536201,-6.198742720458057,7.568940647844044
+Placebo: 5 weeks earlier,switch hours vs late evening,fall,"Street crime (property, violent, disorder)",13062,3.4573009307579463,-4.910062031728528,12.155539775740898
+Placebo: 5 weeks earlier,switch hours vs late evening,pooled,"Street crime (property, violent, disorder)",21775,2.084220885279273,-3.465434319195748,7.506379290596198
+Placebo: 5 weeks earlier,switch hours vs late evening,spring,Robbery,87,-4.987373737373735,-53.95385756971509,84.92449085914392
+Placebo: 5 weeks earlier,switch hours vs late evening,fall,Robbery,83,20.503048780487806,-29.208317217522804,116.91803363848574
+Placebo: 5 weeks earlier,switch hours vs late evening,pooled,Robbery,170,7.001453902680732,-31.74084715480382,67.50461743070876
+Placebo: 5 weeks earlier,switch hours vs late evening,spring,Traffic crash,1809,4.327826689088939,-12.665644773628069,25.196348941708052
+Placebo: 5 weeks earlier,switch hours vs late evening,fall,Traffic crash,2851,-5.4788540502826155,-18.033950489748975,8.649945967467518
+Placebo: 5 weeks earlier,switch hours vs late evening,pooled,Traffic crash,4660,-0.6964968739964529,-11.212400400486754,11.43553126396006
+Placebo: 5 weeks earlier,check: late evening vs midday,spring,All incidents,18249,0.0678605268975166,-5.049088401523323,5.519928146075208
+Placebo: 5 weeks earlier,check: late evening vs midday,fall,All incidents,27573,-3.7500335433990353,-9.584081190063989,1.8491660057903017
+Placebo: 5 weeks earlier,check: late evening vs midday,pooled,All incidents,45822,-1.85965040261111,-5.627526474252692,2.0064825596391214
+Placebo: 5 weeks earlier,check: late evening vs midday,spring,"Street crime (property, violent, disorder)",11317,-1.419977930607834,-7.7867740137615655,5.483259350771033
+Placebo: 5 weeks earlier,check: late evening vs midday,fall,"Street crime (property, violent, disorder)",17779,-5.375270003606132,-12.348997519050144,2.238231177873268
+Placebo: 5 weeks earlier,check: late evening vs midday,pooled,"Street crime (property, violent, disorder)",29096,-3.4178692958434342,-8.045986871327926,1.6233460083829891
+Placebo: 5 weeks earlier,check: late evening vs midday,spring,Robbery,71,-31.813804173354733,-60.72414750879065,16.96681252655577
+Placebo: 5 weeks earlier,check: late evening vs midday,fall,Robbery,144,44.92107069320524,-7.118567071291912,123.36014097004767
+Placebo: 5 weeks earlier,check: late evening vs midday,pooled,Robbery,215,-0.5936797497563769,-29.953425281574592,40.898724960566454
+Placebo: 5 weeks earlier,check: late evening vs midday,spring,Traffic crash,914,-10.95591444783937,-25.661164220254534,5.450011919049431
+Placebo: 5 weeks earlier,check: late evening vs midday,fall,Traffic crash,1447,3.562801932367142,-8.952688643516467,16.21463259109061
+Placebo: 5 weeks earlier,check: late evening vs midday,pooled,Traffic crash,2361,-3.970551416312059,-13.69621106483782,6.505237055703569

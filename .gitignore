@@ -23,6 +23,10 @@ data/*
 !data/district_composition_check.csv
 !data/district_heterogeneity.csv
 !data/district_category_mix.csv
+!data/darkness_dst_effects.csv
+!data/response_time_effects.csv
+!data/response_time_monthly.csv
+!data/full_moon_effects.csv
 
 # Ignore model outputs / plots
 plots/*
@@ -31,6 +35,8 @@ plots/*
 !plots/weather_effects_by_type.png
 !plots/forecast_vs_observed.png
 !plots/weather_effects_by_district.png
+!plots/darkness_dst.png
+!plots/response_times.png
 models/*
 checkpoints/*
 

@@ -22,9 +22,11 @@ The make_category_series.py script maps every dispatch type to one of nine categ
 
 The fetch_weather_forecast.py script downloads the day-ahead forecasts Open-Meteo actually issued (one and two days ahead, January 2024 onward). The forecast_weather.py script rescores the last two rolling-origin years with forecast instead of observed weather (data/forecast_vs_observed.csv, data/forecast_event_skill.csv, plots/forecast_vs_observed.png). Same-day weather flags are defined once in weather_features.py and shared by the observed and forecast feature builds.
 
+The make_incident_extract.py script writes a call-level table (time, category, priority, response times) for the questions beyond weather. darkness_dst.py tests darkness at the daylight saving changes (data/darkness_dst_effects.csv, plots/darkness_dst.png), response_times.py models police response times (data/response_time_effects.csv, data/response_time_monthly.csv, plots/response_times.png), and full_moon.py tests the full-moon myth (data/full_moon_effects.csv). astro.py computes sunset times and moon phases. Further questions are ranked in docs/ROADMAP.md.
+
 ## Typical Workflow
 
-Set up the environment with Python 3.12: `python3.12 -m venv .venv && .venv/bin/pip install -r requirements.txt`. Place the raw input files in the data directory, build the feature table with `.venv/bin/python scripts/build_features.py`, train a single baseline model with `.venv/bin/python scripts/train_nn.py`, run the neural-network ablation with `.venv/bin/python main.py` (about ten minutes on a laptop CPU), compare all models with `.venv/bin/python -m scripts.compare_models` (about a minute), run the severe-weather analysis with `.venv/bin/python -m scripts.severe_weather` (about a minute), and break it down by dispatch type with `.venv/bin/python scripts/make_category_series.py` followed by `.venv/bin/python -m scripts.weather_by_type` and `.venv/bin/python -m scripts.weather_by_district`. Check the forecast case with `cd scripts && ../.venv/bin/python fetch_weather_forecast.py` and then, from the repo root, `.venv/bin/python -m scripts.forecast_weather` (about 30 seconds).
+Set up the environment with Python 3.12: `python3.12 -m venv .venv && .venv/bin/pip install -r requirements.txt`. Place the raw input files in the data directory, build the feature table with `.venv/bin/python scripts/build_features.py`, train a single baseline model with `.venv/bin/python scripts/train_nn.py`, run the neural-network ablation with `.venv/bin/python main.py` (about ten minutes on a laptop CPU), compare all models with `.venv/bin/python -m scripts.compare_models` (about a minute), run the severe-weather analysis with `.venv/bin/python -m scripts.severe_weather` (about a minute), and break it down by dispatch type with `.venv/bin/python scripts/make_category_series.py` followed by `.venv/bin/python -m scripts.weather_by_type` and `.venv/bin/python -m scripts.weather_by_district`. Check the forecast case with `cd scripts && ../.venv/bin/python fetch_weather_forecast.py` and then, from the repo root, `.venv/bin/python -m scripts.forecast_weather` (about 30 seconds). For the questions beyond weather, run `.venv/bin/python -m scripts.make_incident_extract` once (about a minute), then `.venv/bin/python -m scripts.darkness_dst`, `.venv/bin/python -m scripts.response_times` (about a minute and a half) and `.venv/bin/python -m scripts.full_moon`.
 
 ## Results
 
@@ -147,6 +149,47 @@ MAE improvement from adding weather, compared with the same model without weathe
 
 **A pitfall worth knowing about.** The first run made ridge *significantly worse* with a two-day forecast than with no weather at all (+3.3 MAE). The cause: ridge (with almost no regularization, alpha 0.1) puts weights of about +400 on rain and -355 on precipitation (per log-inch). Those two columns are identical in the archive except on snow days, so the model was reading their small difference as snow. The two-day forecast reports convective rain separately as `showers`, so from December 2024 its rain ran below its precipitation on a quarter of snow-free days, and ridge turned that into large errors. Defining forecast rain as rain plus showers, matching the archive, removed the problem; the table uses that fix. The one-day forecast has a similar but smaller mismatch that isn't a definition problem: it forecasts about a third as many wet hours as the archive records, which is likely why it does no better than the two-day forecast. Gradient boosting, which splits on thresholds rather than extrapolating linear weights, was barely affected either way. The general lesson: a linear model with near-collinear inputs depends on those inputs keeping their exact relationship, and switching data sources can break it.
 
+### Beyond weather
+
+Three questions that use what every call record carries beyond its date: the exact time, the priority, and when the first unit arrived. They are the first items in [docs/ROADMAP.md](docs/ROADMAP.md), which ranks further questions with the research behind each. `scripts/make_incident_extract.py` builds the call-level table they share. Sunset and moon phase are calculated in `scripts/astro.py`, not downloaded.
+
+#### Does darkness bring crime? Daylight saving time as a natural experiment
+
+![What happens to each clock hour at the DST changes](plots/darkness_dst.png)
+
+Doleac & Sanders (2015) found that robbery falls 7% when daylight saving time starts, and 27% in the hour after sunset. The clock changes make a clean test, because sunset moves an hour overnight while work, school, season and weather barely change. `scripts/darkness_dst.py` uses 16 changes (spring 2018-2025 except 2020, which ran into the COVID lockdown; fall 2017-2025). For each, it compares the three weeks before and after, in the clock hours whose darkness switches (18:00-20:00 in March, 17:00-19:00 in November), against midday hours that are light either way. A few evening-heavy holidays are left out, such as Halloween, St. Patrick's Day and Thanksgiving. CIs come from a bootstrap over days.
+
+Effect of darkness on calls in the switch hours, both changes pooled (95% CI, `data/darkness_dst_effects.csv`):
+
+| Calls | Darkness effect | Same test, 5 weeks earlier (should be zero) |
+|---|---|---|
+| Traffic crashes | **+19% (+10% to +28%)** | -5% (-13% to +4%) |
+| All incidents | 0% (-2% to +3%) | -3% (-5% to -1%) |
+| Street crime (property, violent, disorder) | -4% (-7% to -1%), but see below | -1% (-5% to +2%) |
+| Robbery (146 calls) | +10% (-24% to +61%) | +6% (-29% to +54%) |
+
+- **Darkness at rush hour raises crash calls**, by 27% (+15% to +41%) when November darkness arrives at 5-7pm. In March, when light returns to 6-8pm, those hours lose about a tenth of their crash calls (darkness effect +11%, -1% to +26%). The rise is confined to the hours that switch (the orange spike in the chart). It is biggest in November, when no sleep is lost, so it is darkness, not the lost hour of sleep. The same test on fake dates five weeks earlier finds nothing.
+- **The crime result depends on the comparison, so it isn't a finding.** Against midday, street crime looks 4% *lower* when the switch hours are dark. Against late evening (21:00-24:00, dark either way), it looks 6% higher (0% to +11%). The reason is that late evening itself moves at every clock change: its calls rise 9% relative to midday after the March change and fall 7% after the November one. Five weeks earlier they don't move. That fits part of evening activity following the sun rather than the clock, which shifts each evening hour's calls by an amount that depends on the shape of the daily curve. Neither comparison is clean, and the two disagree.
+- **The noise floor is a few percent.** The fake-date check for all incidents came out at -3% (-5% to -1%), so effects of that size are within this design's noise.
+- **Robbery is too rare here to test the published effect.** The switch hours saw 146 robbery calls across all 16 changes, so the 95% CI spans -24% to +61%.
+
+#### Does weather, or a busy day, slow police response?
+
+![Police response times](plots/response_times.png)
+
+`scripts/response_times.py` takes the daily median time from call to first unit on scene, separately for priority 0 calls (the most urgent: in-progress assaults, domestic violence, injury crashes; median 7.8 minutes) and priority 1 (suspicious persons, welfare checks, alarms; median 15.6 minutes). It regresses that median on the weather categories and the day's total call count, with calendar-month and weekday fixed effects so staffing changes and weekly rhythms don't leak in. CIs come from a bootstrap over whole weeks.
+
+- **An inch of snow slows urgent responses by 14% (+8% to +20%), about a minute**, and they stay 7% slower (+3% to +10%) the day after. Heavy rain adds 3% (+2% to +5%). Gusts, heat and ice risk do nothing measurable. These effects hold the day's call count fixed. Snow days have fewer calls, so in raw terms the slowdown would look smaller.
+- **Busy days slow routine calls but not urgent ones.** Ten percent more calls than usual for that month and weekday makes priority 1 responses 1.5% slower (+1.1% to +1.8%) and leaves priority 0 unchanged (-0.7% to +0.2%). Dispatch protects its most urgent calls from load, but nothing protects them from bad roads.
+- **Responses got slower in 2021-2024 and have partly recovered.** The priority 0 median rose from 7.3 minutes in 2017-2018 to about 8.0 in 2022-2024. Priority 1 went from about 14.5-15 minutes to 17.1 in 2024, then back to 16.1 in 2025. The data don't say why. Staffing is the obvious candidate, and it needs outside data to test.
+
+#### Is there a full-moon effect?
+
+No. Studies keep finding none, but officers widely believe in one. `scripts/full_moon.py` runs two tests, treating the full-moon date plus the day before and after as full-moon days (`data/full_moon_effects.csv`):
+
+- **Whole days (2020-2026):** on 225 full-moon days, incidents ran 0.5% (-0.4% to +1.4%) above what the rolling-origin model expected, the same as other days. That rules out an effect larger than about 1.4%.
+- **Nights (2017-2026, 110 lunar cycles):** calls between 20:00 and 04:00, compared with the same date's daytime calls, on full-moon nights against the new-moon nights of the same cycle. All incidents: +1% (-2% to +4%). Violent / person calls: 0% (-5% to +5%). Disorder: +3% (-1% to +8%). Welfare / mental health: -4% (-9% to +1%).
+
 ### Why the neural network struggles with weather
 
 The neural-network ablation (`main.py`, `data/ablation_results.csv`) tells a different story from ridge, and the difference comes from the model rather than the data. For the network, removing all weather improves validation MAE by 4.4, and raw temperature is the main culprit (removing the three temperature columns improves it by 2.5). Ridge is indifferent to those same columns. The network appears to lean on temperature as a stand-in for season, then misfires when a year's temperatures don't follow the training pattern. The only weather features whose removal reliably hurts the network are the threshold flags, especially rain.
@@ -166,6 +209,7 @@ Earlier versions of this project had four problems, all now fixed:
 - The 3-inch snow category has only 8 days, hence its wide interval.
 - Dispatch categories reflect how a call was first classified, not what was found; the category rules are judgment calls, listed in full in `data/dispatch_type_map.csv`.
 - Flagging 47 neural-network comparisons at two standard errors will produce a few false positives.
+- Response times exist only for calls a unit arrived at (77% of calls; half of the lowest-priority calls are handled by phone or never get an arrival).
 
 ## Modeling Philosophy
 
@@ -177,5 +221,5 @@ The structure of the pipeline makes it possible to answer concrete questions abo
 
 ## Reproducibility and Extensions
 
-All experiments are reproducible due to fixed random seeds, deterministic transformations, and pinned dependencies in requirements.txt (verified to reproduce the original February 2026 numbers exactly on the original data). No derived data needs to be stored permanently, as all outputs can be regenerated from raw inputs. The project is designed to be extended easily, with natural next steps including seasonal interaction effects, weekday versus weekend differentiation, beat-level effects, bias-correcting forecasts to the archive before use, or higher-resolution modeling if finer-grained incident data becomes available.
+All experiments are reproducible due to fixed random seeds, deterministic transformations, and pinned dependencies in requirements.txt (verified to reproduce the original February 2026 numbers exactly on the original data). No derived data needs to be stored permanently, as all outputs can be regenerated from raw inputs. The project is designed to be extended easily, with natural next steps (ranked, with sources, in docs/ROADMAP.md) including school days, policy changes such as Maryland's 2023 ban on cannabis-odor stops, seasonal interaction effects, weekday versus weekend differentiation, beat-level effects, bias-correcting forecasts to the archive before use, or higher-resolution modeling if finer-grained incident data becomes available.
 
