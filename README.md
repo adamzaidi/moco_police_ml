@@ -22,7 +22,7 @@ The make_category_series.py script maps every dispatch type to one of nine categ
 
 The fetch_weather_forecast.py script downloads the day-ahead forecasts Open-Meteo actually issued (one and two days ahead, January 2024 onward). The forecast_weather.py script rescores the last two rolling-origin years with forecast instead of observed weather (data/forecast_vs_observed.csv, data/forecast_event_skill.csv, plots/forecast_vs_observed.png). Same-day weather flags are defined once in weather_features.py and shared by the observed and forecast feature builds.
 
-The make_incident_extract.py script writes a call-level table (time, category, priority, response times) for the questions beyond weather. darkness_dst.py tests darkness at the daylight saving changes (data/darkness_dst_effects.csv, plots/darkness_dst.png), response_times.py models police response times (data/response_time_effects.csv, data/response_time_monthly.csv, plots/response_times.png), and full_moon.py tests the full-moon myth (data/full_moon_effects.csv). astro.py computes sunset times and moon phases. Further questions are ranked in docs/ROADMAP.md.
+The make_incident_extract.py script writes a call-level table (time, category, priority, response times) for the questions beyond weather. darkness_dst.py tests darkness at the daylight saving changes (data/darkness_dst_effects.csv, plots/darkness_dst.png, plots/darkness_dst_effects.png), response_times.py models police response times (data/response_time_effects.csv, data/response_time_monthly.csv, plots/response_times.png), and full_moon.py tests the full-moon myth (data/full_moon_effects.csv, plots/full_moon.png). astro.py computes sunset times and moon phases. Further questions are ranked in docs/ROADMAP.md.
 
 ## Typical Workflow
 
@@ -168,6 +168,8 @@ Effect of darkness on calls in the switch hours, both changes pooled (95% CI, `d
 | Street crime (property, violent, disorder) | -4% (-7% to -1%), but see below | -1% (-5% to +2%) |
 | Robbery (146 calls) | +10% (-24% to +61%) | +6% (-29% to +54%) |
 
+![Darkness effect by call type, with both comparisons and the fake-date check](plots/darkness_dst_effects.png)
+
 - **Darkness at rush hour raises crash calls**, by 27% (+15% to +41%) when November darkness arrives at 5-7pm. In March, when light returns to 6-8pm, those hours lose about a tenth of their crash calls (darkness effect +11%, -1% to +26%). The rise is confined to the hours that switch (the orange spike in the chart). It is biggest in November, when no sleep is lost, so it is darkness, not the lost hour of sleep. The same test on fake dates five weeks earlier finds nothing.
 - **The crime result depends on the comparison, so it isn't a finding.** Against midday, street crime looks 4% *lower* when the switch hours are dark. Against late evening (21:00-24:00, dark either way), it looks 6% higher (0% to +11%). The reason is that late evening itself moves at every clock change: its calls rise 9% relative to midday after the March change and fall 7% after the November one. Five weeks earlier they don't move. That fits part of evening activity following the sun rather than the clock, which shifts each evening hour's calls by an amount that depends on the shape of the daily curve. Neither comparison is clean, and the two disagree.
 - **The noise floor is a few percent.** The fake-date check for all incidents came out at -3% (-5% to -1%), so effects of that size are within this design's noise.
@@ -185,9 +187,11 @@ Effect of darkness on calls in the switch hours, both changes pooled (95% CI, `d
 
 #### Is there a full-moon effect?
 
+![Full-moon tests](plots/full_moon.png)
+
 No. Studies keep finding none, but officers widely believe in one. `scripts/full_moon.py` runs two tests, treating the full-moon date plus the day before and after as full-moon days (`data/full_moon_effects.csv`):
 
-- **Whole days (2020-2026):** on 225 full-moon days, incidents ran 0.5% (-0.4% to +1.4%) above what the rolling-origin model expected, the same as other days. That rules out an effect larger than about 1.4%.
+- **Whole days (2020-2026):** on 225 full-moon days, incidents ran 0.5% (-0.4% to +1.4%) above what the rolling-origin model expected, the same as other days. The left panel shows every day of the lunar cycle: the full moon sits inside the day-to-day noise. That rules out an effect larger than about 1.4%.
 - **Nights (2017-2026, 110 lunar cycles):** calls between 20:00 and 04:00, compared with the same date's daytime calls, on full-moon nights against the new-moon nights of the same cycle. All incidents: +1% (-2% to +4%). Violent / person calls: 0% (-5% to +5%). Disorder: +3% (-1% to +8%). Welfare / mental health: -4% (-9% to +1%).
 
 ### Why the neural network struggles with weather

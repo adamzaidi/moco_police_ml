@@ -17,7 +17,7 @@ CIs: bootstrap over days (test 1) or lunar cycles (test 2). The CI half-width is
 the smallest effect each test could have detected.
 
 Inputs:  data/oos_predictions.csv, data/incidents_slim.pkl
-Outputs: data/full_moon_effects.csv
+Outputs: data/full_moon_effects.csv, plots/full_moon.png
 Run from the repo root:  .venv/bin/python -m scripts.full_moon
 """
 from __future__ import annotations
@@ -25,6 +25,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
@@ -36,6 +37,7 @@ from scripts.astro import TZ, full_moon_instants, new_moon_instants  # noqa: E40
 OOS_PATH = BASE_DIR / "data" / "oos_predictions.csv"
 SLIM_PATH = BASE_DIR / "data" / "incidents_slim.pkl"
 OUT_CSV = BASE_DIR / "data" / "full_moon_effects.csv"
+OUT_PLOT = BASE_DIR / "plots" / "full_moon.png"
 N_BOOT = 2000
 NIGHT_GROUPS = ["All incidents", "Violent / person", "Disorder / suspicious", "Welfare / mental health"]
 
@@ -107,6 +109,53 @@ def main() -> None:
     out.to_csv(OUT_CSV, index=False)
     pd.set_option("display.width", 220)
     print(out.to_string(index=False, float_format="%.1f"))
+    plot(out, new_moon_instants("2017-03-01", "2026-03-01"), rng)
+
+
+
+def plot(out: pd.DataFrame, new_instants: pd.DatetimeIndex, rng) -> None:
+    """Left: model residual by day of the lunar cycle. Right: night-vs-day effects by call type."""
+    o = pd.read_csv(OOS_PATH, parse_dates=["date"])
+    p = o["pred_Ridge regression_all"]
+    o["resid"] = 100 * (o["incident_count"] - p) / p
+    nm = new_instants.tz_convert(TZ).tz_localize(None).sort_values()
+    noon = (o["date"] + pd.Timedelta(hours=12)).values
+    k = np.searchsorted(nm.values, noon)
+    frac = (noon - nm.values[k - 1]) / (nm.values[k] - nm.values[k - 1])  # 0 = new moon, 0.5 = full
+    o["age"] = np.minimum((frac * 30).astype(int), 29)  # 30 equal phase bins, one per "lunar day"
+    by_age = o.groupby("age")["resid"]
+    mean = by_age.mean()
+    mean.index = mean.index + 0.5
+    ci = by_age.apply(lambda x: np.percentile([rng.choice(x.values, len(x)).mean() for _ in range(1000)], [2.5, 97.5]))
+    lo, hi = np.array([c[0] for c in ci]), np.array([c[1] for c in ci])
+
+    fig, (a1, a2) = plt.subplots(1, 2, figsize=(11.5, 4.2), gridspec_kw={"width_ratios": [1.3, 1]})
+    a1.axvspan(14, 17, color="#f1e4c8", zorder=0)
+    a1.fill_between(mean.index, lo, hi, color="#86b6ef", alpha=0.45, lw=0)
+    a1.plot(mean.index, mean.values, color="#104281", lw=2, marker="o", ms=3.5)
+    a1.axhline(o["resid"].mean(), color="#333", lw=0.8, ls="--")
+    a1.text(15.5, 0.03, "full moon", ha="center", fontsize=9, color="#7a5a1e", transform=a1.get_xaxis_transform())
+    a1.text(29.8, o["resid"].mean(), " average,\n all days", va="center", fontsize=8, color="#555")
+    a1.set_xlim(0, 30)
+    a1.set_xticks([0, 7.5, 15, 22.5, 30], ["new", "first\nquarter", "full", "last\nquarter", "new"], fontsize=9)
+    a1.set_ylabel("Incidents vs model expectation, % (mean, 95% CI)")
+    a1.set_title("Whole days, 2020-2026, by day of the lunar cycle", fontsize=10.5, loc="left")
+    a1.spines[["top", "right"]].set_visible(False)
+
+    d = out[out["test"].str.startswith("Night")].iloc[::-1]
+    y = np.arange(len(d))
+    a2.hlines(y, d["ci_low"], d["ci_high"], color="#2a78d6", lw=2)
+    a2.plot(d["effect_pct"], y, "o", color="#104281", ms=7)
+    a2.axvline(0, color="#333", lw=0.8)
+    a2.set_yticks(y, d["group"], fontsize=9.5)
+    a2.set_xlabel("% change, full-moon nights vs new-moon nights (95% CI)")
+    a2.set_title("Night calls vs same-day daytime, 110 lunar cycles", fontsize=10.5, loc="left")
+    a2.spines[["top", "right", "left"]].set_visible(False)
+    a2.tick_params(axis="y", length=0)
+    fig.suptitle("No full-moon effect on police calls", x=0.02, ha="left")
+    fig.tight_layout()
+    fig.savefig(OUT_PLOT, dpi=150)
+    plt.close(fig)
 
 
 if __name__ == "__main__":
